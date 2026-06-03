@@ -35,7 +35,7 @@ STAGE_HOST_PREP = "stage-01-host-prep"
 @dataclass
 class BuildConfig:
     lfs_mount: str = "/mnt/lfs"
-    lfs_partition: str = ""
+    lfs_partition: str = "/dev/sdb2"
     swap_partition: str = ""
     filesystem_type: str = "ext4"
     hostname: str = "lfs"
@@ -92,7 +92,7 @@ def collect_preferences() -> BuildConfig:
 
     cfg = BuildConfig()
     cfg.lfs_mount = prompt("LFS mount point", cfg.lfs_mount)
-    cfg.lfs_partition = prompt("LFS partition device (e.g. /dev/sdb2)", cfg.lfs_partition)
+    cfg.lfs_partition = prompt("LFS partition device", cfg.lfs_partition)
     cfg.swap_partition = prompt("Swap partition (optional, leave empty to skip)", "")
     cfg.filesystem_type = prompt("Filesystem type for LFS partition", cfg.filesystem_type)
     cfg.hostname = prompt("Target hostname", cfg.hostname)
@@ -118,7 +118,10 @@ def load_config() -> BuildConfig | None:
     if not CONFIG_FILE.exists():
         return None
     data = json.loads(CONFIG_FILE.read_text())
-    return BuildConfig(**{k: data.get(k, getattr(BuildConfig(), k)) for k in BuildConfig.__dataclass_fields__})
+    cfg = BuildConfig(**{k: data.get(k, getattr(BuildConfig(), k)) for k in BuildConfig.__dataclass_fields__})
+    if not cfg.lfs_partition:
+        cfg.lfs_partition = "/dev/sdb2"
+    return cfg
 
 
 def load_state() -> dict[str, Any]:
