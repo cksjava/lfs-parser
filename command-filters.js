@@ -302,6 +302,7 @@ fi`;
 
 function applyGrubBuildPlatformsRule(blocks) {
   const efiPass = `# Automated: install x86_64-efi modules (BLFS GRUB-for-EFI; one platform per configure).
+make clean
 ./configure --prefix=/usr     \\
             --sysconfdir=/etc \\
             --disable-efiemu  \\
