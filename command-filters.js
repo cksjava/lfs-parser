@@ -126,10 +126,13 @@ function cleanupLineContinuations(block) {
 function sanitizeLineForDocumentation(line, docRules) {
   let out = line;
   if (docRules.stripFromConfigureLines?.length && isConfigureLikeLine(out)) {
+    const before = out;
     for (const re of docRules.stripFromConfigureLines) {
       out = out.replace(re, "");
     }
-    out = out.replace(/\s+\\\s*$/g, "").trimEnd();
+    if (out !== before) {
+      out = out.replace(/\s+\\\s*$/g, "").trimEnd();
+    }
     if (!out.trim() || /^\\\s*$/.test(out.trim())) return null;
   }
   const rmSanitized = stripDocPathsFromRmLine(out);
