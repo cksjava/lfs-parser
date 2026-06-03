@@ -26,9 +26,13 @@
     "^tzselect\\s*$",
     "^localedef\\s+",
     "^TIMEOUTFACTOR=.*make\\s+test\\s+",
-    "^make html\\s*$"
+    "^make html\\s*$",
+    "^ninja\\s+test\\b",
+    "^meson\\s+test\\b",
+    "^unshare\\s+-m\\s+ninja\\s+test\\s*$"
   ],
   "dropBlockPatterns": [
+    "unshare\\s+-m\\s+ninja\\s+test",
     "su\\s+tester\\s+-c\\s+.*make\\s+(-k\\s+)?check",
     "su\\s+tester\\s+-c\\s+.*make\\s+.*\\btest\\b",
     "chown\\s+-R\\s+tester\\s*\\.\\s*\\n\\s*sed.*test_plugin",
@@ -43,6 +47,7 @@
     "^make\\s+-k\\s+check\\s*$",
     "^make\\s+test\\b",
     "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root",
+    "^ninja\\s+test\\s*$",
     "^\\./configure \\.\\.\\.\\s*$",
     "^ABI=32 ./configure \\.\\.\\.\\s*$",
     "\\./configure \\.\\.\\."
