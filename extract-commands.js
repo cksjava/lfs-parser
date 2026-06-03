@@ -308,9 +308,14 @@ function extractCommands(html) {
     if ($pre.closest("div.admon.note, div.note").length) {
       return;
     }
-    // Use full <pre> text: nested <kbd class="command"> (e.g. chown --from lfs)
-    // breaks when only the outer kbd node is read (words run together after esac).
     const text = $pre.text().replace(/\r\n/g, "\n").trim();
+    // Warnings may show optional post-boot tests (e.g. util-linux tests/run.sh as root).
+    if (
+      $pre.closest("div.admon.warning").length &&
+      /\btests\/run\.sh\b/.test(text)
+    ) {
+      return;
+    }
     if (text) blocks.push(text);
   });
   return blocks;

@@ -240,6 +240,35 @@ function applyGlibcLocaleRule(blocks, rule) {
   return result;
 }
 
+/** Replace interactive menuconfig with host-derived kernel configuration. */
+function applyKernelHostConfigRule(blocks) {
+  const insertComment =
+    "# Automated: configure like the running (host) kernel (localyesconfig + olddefconfig).\n";
+  const insert = `${insertComment}make localyesconfig\nmake olddefconfig`;
+  const result = [];
+  let inserted = false;
+
+  for (const block of blocks) {
+    if (/^make\s+menuconfig\s*$/im.test(block.trim())) continue;
+    result.push(block);
+    if (!inserted && /^make\s+mrproper\s*$/im.test(block.trim())) {
+      result.push(insert);
+      inserted = true;
+    }
+  }
+
+  if (!inserted) {
+    const mrIdx = result.findIndex((b) => /^make\s+mrproper\s*$/im.test(b.trim()));
+    if (mrIdx >= 0) {
+      result.splice(mrIdx + 1, 0, insert);
+    } else {
+      result.unshift(`${insertComment}make localyesconfig\nmake olddefconfig`);
+    }
+  }
+
+  return result;
+}
+
 function applyPageRules(blocks, relPath, rules) {
   const pageRule = rules.pageRules[normalizeRelPath(relPath)];
   if (!pageRule) return blocks;
@@ -263,6 +292,10 @@ function applyPageRules(blocks, relPath, rules) {
 
   if (pageRule.replaceLocaledefBlock) {
     out = applyGlibcLocaleRule(out, pageRule);
+  }
+
+  if (pageRule.useHostKernelConfig) {
+    out = applyKernelHostConfigRule(out);
   }
 
   return out;

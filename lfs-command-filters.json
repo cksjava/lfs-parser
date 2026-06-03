@@ -29,10 +29,12 @@
     "^make html\\s*$",
     "^ninja\\s+test\\b",
     "^meson\\s+test\\b",
-    "^unshare\\s+-m\\s+ninja\\s+test\\s*$"
+    "^unshare\\s+-m\\s+ninja\\s+test\\s*$",
+    "^bash\\s+tests/run\\.sh\\b"
   ],
   "dropBlockPatterns": [
     "unshare\\s+-m\\s+ninja\\s+test",
+    "tests/run\\.sh",
     "su\\s+tester\\s+-c\\s+.*make\\s+(-k\\s+)?check",
     "su\\s+tester\\s+-c\\s+.*make\\s+.*\\btest\\b",
     "chown\\s+-R\\s+tester\\s*\\.\\s*\\n\\s*sed.*test_plugin",
@@ -114,6 +116,20 @@
       "comment": "Skip test suite; --enable-optimizations runs tests during make (PGO)",
       "dropBlocksMatching": ["^make\\s+test\\b"],
       "dropLinePatterns": ["--enable-optimizations"]
+    },
+    "chapter08/util-linux.html": {
+      "comment": "Skip test suite (tests/run.sh, make check as tester, dummy /etc/fstab)",
+      "dropBlocksMatching": [
+        "tests/run\\.sh",
+        "touch\\s+/etc/fstab",
+        "chown\\s+-R\\s+tester",
+        "su\\s+tester\\s+-c.*make\\s+-k\\s+check"
+      ]
+    },
+    "chapter10/kernel.html": {
+      "comment": "Use host-derived kernel config (localyesconfig) instead of interactive menuconfig",
+      "useHostKernelConfig": true,
+      "dropBlocksMatching": ["^make\\s+menuconfig\\s*$"]
     }
   },
   "documentation": {
