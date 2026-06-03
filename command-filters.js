@@ -287,14 +287,27 @@ fi`;
 function grubInstallBlock() {
   return `# Automated: GRUB target from build_lfs.py (GPT+ESP/UEFI → x86_64-efi; else i386-pc).
 if [[ "\${LFS_GRUB_MODE:-bios}" == efi ]]; then
-  mkdir -pv /boot/efi
+  mkdir -pv /boot/efi /sys/firmware/efi/efivars
   if ! mountpoint -q /boot/efi 2>/dev/null; then
     mount -t vfat "\${LFS_ESP_PARTITION:?LFS_ESP_PARTITION must be set for UEFI GRUB}" /boot/efi
   fi
   if ! grep -q '[[:space:]]/boot/efi[[:space:]]' /etc/fstab 2>/dev/null; then
     echo "\${LFS_ESP_PARTITION} /boot/efi vfat defaults,umask=0077 0 0" >> /etc/fstab
   fi
-  grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot
+  if ! mountpoint -q /sys/firmware/efi/efivars 2>/dev/null; then
+    mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
+  fi
+  # Default: BLFS chroot fallback when NVRAM is unreachable (common during LFS build).
+  _grub_extra=(--no-nvram --removable)
+  if mountpoint -q /sys/firmware/efi/efivars 2>/dev/null && \\
+     [[ -n "\$(find /sys/firmware/efi/efivars -maxdepth 1 -type f 2>/dev/null | head -1)" ]]; then
+    _grub_extra=(--bootloader-id=LFS --recheck)
+    echo "EFI variables available; registering LFS boot entry with efibootmgr"
+  else
+    echo "Note: EFI variables unavailable in chroot; installing EFI/BOOT/BOOTX64.EFI only" >&2
+    echo "After reboot, pick the LFS disk / UEFI removable entry in the firmware boot menu." >&2
+  fi
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot "\${_grub_extra[@]}"
 else
   grub-install --target=i386-pc "\${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"
 fi`;
