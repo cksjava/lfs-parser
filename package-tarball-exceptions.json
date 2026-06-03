@@ -1,0 +1,87 @@
+{
+  "description": "Maps book HTML pages to source tarballs when the chapter heading does not match wget-list-systemd names. Keys are paths under the book dir (e.g. chapter05/gcc-pass1.html). Tarballs must exist in wget-list-systemd or wget-list.",
+  "exceptions": [
+    {
+      "source": "chapter05/binutils-pass1.html",
+      "tarball": "binutils-2.46.0.tar.xz",
+      "comment": "Pass 1; same archive as pass 2"
+    },
+    {
+      "source": "chapter05/binutils-pass2.html",
+      "tarball": "binutils-2.46.0.tar.xz",
+      "comment": "Pass 2; reuse extracted tree — book expects fresh extract per pass; preamble rm -rf handles that"
+    },
+    {
+      "source": "chapter05/gcc-pass1.html",
+      "tarball": "gcc-15.2.0.tar.xz",
+      "comment": "GCC pass 1"
+    },
+    {
+      "source": "chapter05/gcc-libstdc++.html",
+      "tarball": "gcc-15.2.0.tar.xz",
+      "comment": "Libstdc++ is built from the GCC tarball"
+    },
+    {
+      "source": "chapter05/linux-headers.html",
+      "tarball": "linux-6.18.10.tar.xz",
+      "comment": "Title says API Headers; archive is the kernel tarball"
+    },
+    {
+      "source": "chapter06/binutils-pass2.html",
+      "tarball": "binutils-2.46.0.tar.xz"
+    },
+    {
+      "source": "chapter06/gcc-pass2.html",
+      "tarball": "gcc-15.2.0.tar.xz"
+    },
+    {
+      "source": "chapter07/Python.html",
+      "tarball": "Python-3.14.3.tar.xz",
+      "comment": "Capital P matches python.org tarball name"
+    },
+    {
+      "source": "chapter08/Python.html",
+      "tarball": "Python-3.14.3.tar.xz"
+    },
+    {
+      "source": "chapter08/tcl.html",
+      "tarball": "tcl8.6.17-src.tar.gz",
+      "comment": "Book title Tcl-8.6.17; wget uses tcl8.6.17-src"
+    },
+    {
+      "source": "chapter08/expect.html",
+      "tarball": "expect5.45.4.tar.gz",
+      "comment": "Book title Expect-5.45.4; wget uses expect5.45.4"
+    },
+    {
+      "source": "chapter08/xml-parser.html",
+      "tarball": "XML-Parser-2.47.tar.gz",
+      "comment": "Title uses XML::Parser; tarball has hyphen"
+    },
+    {
+      "source": "chapter08/sqlite.html",
+      "tarball": "sqlite-autoconf-3510200.tar.gz",
+      "comment": "Title Sqlite-3510200; wget uses sqlite-autoconf prefix"
+    },
+    {
+      "source": "chapter08/flit-core.html",
+      "tarball": "flit_core-3.12.0.tar.gz",
+      "comment": "Title Flit-Core; PyPI tarball uses underscore"
+    },
+    {
+      "source": "chapter08/dbus.html",
+      "tarball": "dbus-1.16.2.tar.xz",
+      "comment": "Title D-Bus; tarball is dbus"
+    },
+    {
+      "source": "chapter08/markupsafe.html",
+      "tarball": "markupsafe-3.0.3.tar.gz",
+      "comment": "Title MarkupSafe; PyPI uses lowercase"
+    },
+    {
+      "source": "chapter08/jinja2.html",
+      "tarball": "jinja2-3.1.6.tar.gz",
+      "comment": "Title Jinja2; PyPI uses lowercase"
+    }
+  ]
+}

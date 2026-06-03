@@ -1,0 +1,230 @@
+{
+  "description": "Commands removed from generated LFS build scripts. Patterns derived from LFS 13.0-systemd (chapter04/abouttestsuites.html, optional doc installs in chapters 6–8 and 10).",
+  "bookReference": "13.0/chapter04/abouttestsuites.html",
+  "dropLinePatterns": [
+    "^make\\s+check\\s*$",
+    "^make\\s+-k\\s+check\\s*$",
+    "^make\\s+test\\b",
+    "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root\\s*$",
+    "^LC_ALL=C\\.UTF-8\\s+make\\s+test\\b",
+    "^TEST_JOBS=.*make\\s+test_harness\\s*$",
+    "^HARNESS_JOBS=.*make\\s+test\\s*$",
+    "^make\\s+check\\s+2>&1\\s+\\|\\s+tee\\s+",
+    "^spawn\\s+make\\s+tests\\s*$",
+    "^grep\\s+[\"']?\\^?FAIL:",
+    "^grep\\s+[\"']Timed out[\"']",
+    "^awk\\s+.*/# PASS:/.*gmp-check-log",
+    "^\\.\\./contrib/test_summary\\s*$",
+    "^groupadd\\s+-g\\s+102\\s+dummy",
+    "^groupdel\\s+dummy\\s*$",
+    "^chown\\s+-R\\s+tester\\s+\\.\\s*$",
+    "^sed\\s+/test_plugin_glvs/",
+    "^exec\\s+/usr/bin/bash\\s+--login\\s*$",
+    "^tzselect\\s*$",
+    "^localedef\\s+",
+    "^TIMEOUTFACTOR=.*make\\s+test\\s+"
+  ],
+  "dropBlockPatterns": [
+    "su\\s+tester\\s+-c\\s+.*make\\s+(-k\\s+)?check",
+    "su\\s+tester\\s+-c\\s+.*make\\s+.*\\btest\\b",
+    "chown\\s+-R\\s+tester\\s*\\.\\s*\\n\\s*sed.*test_plugin",
+    "su\\s+tester\\s+-c\\s+.*make\\s+.*RUN_EXPENSIVE_TESTS",
+    "chown\\s+-R\\s+tester\\s*\\.\\s*\\n\\s*su\\s+tester",
+    "LC_ALL=C\\.UTF-8\\s+su\\s+-s\\s+/usr/bin/expect\\s+tester",
+    "spawn\\s+make\\s+tests",
+    "set\\s+timeout\\s+-1\\s*\\n\\s*spawn\\s+make\\s+tests",
+    "make\\s+check\\s+2>&1\\s+\\|\\s+tee\\s+gmp-check-log\\s*\\n\\s*awk",
+    "^make\\s+check\\s*$",
+    "^make\\s+-k\\s+check\\s*$",
+    "^make\\s+test\\b",
+    "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root"
+  ],
+  "pageRules": {
+    "chapter08/glibc.html": {
+      "comment": "Skip test suite (optional for automated builds); use install-locales instead of many localedef; skip interactive timezone helpers",
+      "dropBlocksMatching": [
+        "^make\\s+check\\s*$",
+        "grep\\s+[\"']Timed out[\"']",
+        "^localedef\\s"
+      ],
+      "replaceLocaledefBlock": "make localedata/install-locales",
+      "dropLinePatterns": [
+        "^tzselect\\s*$",
+        "zoneinfo/<xxx>",
+        "<xxx>"
+      ]
+    },
+    "chapter08/vim.html": {
+      "comment": "Skip vim test prep (chown/sed) and su tester make test",
+      "dropBlocksMatching": [
+        "chown\\s+-R\\s+tester",
+        "su\\s+tester\\s+-c.*make.*test"
+      ]
+    },
+    "chapter08/bash.html": {
+      "comment": "Skip expect-based test suite and exec into new bash (breaks non-interactive driver)",
+      "dropBlocksMatching": [
+        "chown\\s+-R\\s+tester",
+        "su\\s+-s\\s+/usr/bin/expect",
+        "spawn\\s+make\\s+tests",
+        "exec\\s+/usr/bin/bash"
+      ]
+    },
+    "chapter08/gcc.html": {
+      "comment": "Skip GCC test suite and result summarization",
+      "dropBlocksMatching": [
+        "chown\\s+-R\\s+tester",
+        "su\\s+tester\\s+-c.*make\\s+-k\\s+check",
+        "contrib/test_summary"
+      ]
+    },
+    "chapter08/coreutils.html": {
+      "comment": "Skip check-root, tester group, and expensive check run",
+      "dropBlocksMatching": [
+        "NON_ROOT_USERNAME=tester\\s+check-root",
+        "groupadd\\s+-g\\s+102\\s+dummy",
+        "chown\\s+-R\\s+tester",
+        "su\\s+tester\\s+-c.*make\\s+-k",
+        "groupdel\\s+dummy"
+      ]
+    }
+  },
+  "documentation": {
+    "description": "Optional or extra documentation build/install steps (HTML, info, share/doc trees). configure --docdir is stripped from configure lines; make install may still install some docs.",
+    "catalog": [
+      {
+        "id": "make-install-html",
+        "summary": "make install-html (GMP, MPFR, MPC)",
+        "bookPages": ["chapter08/gmp.html", "chapter08/mpfr.html", "chapter08/mpc.html"]
+      },
+      {
+        "id": "make-doc-install-html",
+        "summary": "make -C doc install-html",
+        "bookPages": ["chapter08/tar.html"]
+      },
+      {
+        "id": "makeinfo-build-install",
+        "summary": "makeinfo + install to /usr/share/info or /usr/share/doc",
+        "bookPages": ["chapter08/dejagnu.html", "chapter08/e2fsprogs.html"]
+      },
+      {
+        "id": "install-info-dir",
+        "summary": "gunzip/install-info and rebuild /usr/share/info/dir",
+        "bookPages": ["chapter08/e2fsprogs.html", "chapter08/texinfo.html"]
+      },
+      {
+        "id": "copy-share-doc",
+        "summary": "install/cp/mkdir/ln into /usr/share/doc",
+        "bookPages": [
+          "chapter08/sed.html",
+          "chapter08/readline.html",
+          "chapter08/expat.html",
+          "chapter08/gawk.html",
+          "chapter08/intltool.html",
+          "chapter08/iproute2.html",
+          "chapter08/kbd.html",
+          "chapter08/ncurses.html",
+          "chapter08/openssl.html",
+          "chapter08/vim.html"
+        ]
+      },
+      {
+        "id": "optional-html-tarballs",
+        "summary": "Extract optional HTML doc tarballs (Tcl, Python)",
+        "bookPages": ["chapter08/tcl.html", "chapter08/Python.html"]
+      },
+      {
+        "id": "sqlite-doc-tarball",
+        "summary": "Copy sqlite-doc tree into /usr/share/doc",
+        "bookPages": ["chapter08/sqlite.html"]
+      },
+      {
+        "id": "kernel-documentation-tree",
+        "summary": "cp -r Documentation to /usr/share/doc/linux-*",
+        "bookPages": ["chapter10/kernel.html"]
+      },
+      {
+        "id": "configure-docdir",
+        "summary": "--docdir= or -D docdir= (stripped from configure, not dropped)",
+        "bookPages": [
+          "chapter06/xz.html",
+          "chapter07/bison.html",
+          "chapter07/util-linux.html",
+          "chapter08/bash.html",
+          "chapter08/bison.html",
+          "chapter08/acl.html",
+          "chapter08/attr.html",
+          "chapter08/automake.html",
+          "chapter08/flex.html",
+          "chapter08/gettext.html",
+          "chapter08/gmp.html",
+          "chapter08/gperf.html",
+          "chapter08/man-db.html",
+          "chapter08/mpc.html",
+          "chapter08/mpfr.html",
+          "chapter08/pcre2.html",
+          "chapter08/pkgconf.html",
+          "chapter08/procps-ng.html",
+          "chapter08/systemd.html",
+          "chapter08/util-linux.html",
+          "chapter08/xz.html"
+        ]
+      },
+      {
+        "id": "bzip2-install-docs-patch",
+        "summary": "Patch enabling doc install in bzip2 Makefile",
+        "bookPages": ["chapter08/bzip2.html"]
+      }
+    ],
+    "dropLinePatterns": [
+      "^make\\s+install-html\\s*$",
+      "^make\\s+-C\\s+doc\\s+install-html\\b",
+      "^makeinfo\\b",
+      "^install-info\\b",
+      "^gunzip\\s+.*\\/usr\\/share\\/info\\/.*\\.info",
+      "^pushd\\s+/usr/share/info\\b",
+      "^\\s*--docdir=/usr/share/doc/",
+      "^\\s*-D\\s+docdir=/usr/share/doc/",
+      "^for\\s+f\\s+in\\s+\\*\\s*$",
+      "^\\s+do\\s+install-info\\s+\\$f\\s+dir",
+      "^cd\\s+\\.\\.\\s*$",
+      "^tar\\s+-xf\\s+\\.\\./.*-html\\.tar",
+      "^tar\\s+.*docs-html\\.tar",
+      "^tar\\s+--strip-components=1\\s+\\\\",
+      "^\\s+--no-same-owner\\s+\\\\",
+      "^\\s+--no-same-permissions\\s+\\\\",
+      "^\\s+-C\\s+/usr/share/doc/",
+      "^\\s+-xvf\\s+\\.\\./.*docs-html",
+      "^install\\s+.*\\/usr\\/share\\/doc\\b",
+      "^install\\s+.*\\/usr\\/share\\/info\\b",
+      "^cp\\s+.*\\/usr\\/share\\/doc\\b",
+      "^\\s*/usr/share/doc/",
+      "^cp\\s+-r\\s+Documentation\\b",
+      "^mkdir\\s+.*\\/usr\\/share\\/doc\\/",
+      "^ln\\s+.*\\/usr/share/doc\\/",
+      "^mv\\s+.*\\/usr\\/share\\/doc\\/",
+      "install_docs-1\\.patch"
+    ],
+    "dropBlockPatterns": [
+      "^make\\s+install-html\\s*$",
+      "^make\\s+-C\\s+doc\\s+install-html",
+      "makeinfo\\s+--",
+      "pushd\\s+/usr/share/info",
+      "gunzip\\s+.*\\.info\\.gz",
+      "install\\s+-v\\s+-dm755\\s+/usr/share/doc/python",
+      "tar\\s+--strip-components=1\\s+\\\\\\s*\\n\\s+--no-same-owner",
+      "-html\\.tar\\.gz",
+      "docs-html\\.tar",
+      "sqlite-doc-",
+      "^cp\\s+-r\\s+Documentation\\s+-T\\s+/usr/share/doc/",
+      "^install\\s+-[vdm].*\\/usr\\/share\\/doc\\/",
+      "^cp\\s+-[vR].*\\/usr\\/share\\/doc\\/",
+      "^mkdir\\s+-.*\\/usr\\/share\\/doc\\/",
+      "^ln\\s+-s.*\\/usr\\/share\\/doc\\/"
+    ],
+    "stripFromConfigureLines": [
+      "\\s+\\\\?\\s*--docdir=/usr/share/doc/[^\\s\\\\]+",
+      "\\s+-D\\s+docdir=/usr/share/doc/[^\\s]+"
+    ]
+  }
+}

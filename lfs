@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# LFS book-parser driver: prepare host, download sources, then build.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<EOF
+Usage: $0 <command> [options]
+
+Commands:
+  prepare    Install Debian/Ubuntu host deps, set /bin/sh -> bash, run version-check.sh
+  download   Download lfs-packages-13.0.tar (axel, 100 connections) into \$LFS/sources
+  build      Run build_lfs.py (must be root; sources should already be downloaded)
+
+Examples:
+  sudo $0 prepare
+  sudo $0 download
+  sudo LFS=/mnt/lfs $0 download
+  sudo $0 build
+
+See README.md for full workflow.
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  prepare)
+    exec "$ROOT/prepare-host.sh" "$@"
+    ;;
+  download)
+    exec "$ROOT/download-sources.sh" "$@"
+    ;;
+  build)
+    exec python3 "$ROOT/build_lfs.py" "$@"
+    ;;
+  ""|-h|--help|help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,138 @@
+{
+  "description": "Rules for omitting generated package scripts. Used by extract-commands.js on every npm run extract. Add explicit pages when the book gains new sections; heuristics catch placeholders and duplicate tooling.",
+  "handlers": {
+    "session-chroot-entry": "run-chroot-session.sh enters chroot once for all chroot scripts",
+    "session-lfs-environment": "run-lfs-session.sh sources runners/lfs-user-env.sh (book §4.4)",
+    "tool-prepare": "./lfs prepare and repo version-check.sh (book §2.2)",
+    "tool-download": "./lfs download (lfs-packages tarball + md5sums)",
+    "orchestrator-env": "build_lfs.py exports LFS, MAKEFLAGS, and related host env",
+    "manual-disk": "Partition, mkfs, mount, and fstab need real device names from the operator",
+    "manual-reboot": "Interactive host logout, umount, and reboot after the build",
+    "documentation-only": "Conceptual or example commands, not part of the automated build",
+    "content-heuristic": "Matched an automatic content rule (see matchedRule id)"
+  },
+  "skipPages": [
+    {
+      "source": "chapter07/chroot.html",
+      "handler": "session-chroot-entry",
+      "reason": "Interactive chroot login; replaced by run-chroot-session.sh"
+    },
+    {
+      "source": "chapter02/hostreqs.html",
+      "handler": "tool-prepare",
+      "reason": "Host version-check script is maintained at repo root"
+    },
+    {
+      "source": "chapter02/aboutlfs.html",
+      "handler": "orchestrator-env",
+      "reason": "export LFS / umask are set by the build driver and runners"
+    },
+    {
+      "source": "chapter02/creatingfilesystem.html",
+      "handler": "manual-disk",
+      "reason": "mkfs/mkswap use book placeholders for block devices"
+    },
+    {
+      "source": "chapter02/mounting.html",
+      "handler": "manual-disk",
+      "reason": "mount/swapon use book placeholders for block devices"
+    },
+    {
+      "source": "chapter03/introduction.html",
+      "handler": "tool-download",
+      "reason": "Bulk wget of sources is ./lfs download"
+    },
+    {
+      "source": "chapter04/settingenvironment.html",
+      "handler": "session-lfs-environment",
+      "reason": "lfs user .bashrc is applied via runners/lfs-user-env.sh"
+    },
+    {
+      "source": "chapter08/pkgmgt.html",
+      "handler": "documentation-only",
+      "reason": "Package management examples (libfoo), not real installs"
+    },
+    {
+      "source": "chapter10/fstab.html",
+      "handler": "manual-disk",
+      "reason": "fstab template uses /dev/<xxx> placeholders"
+    },
+    {
+      "source": "chapter11/reboot.html",
+      "handler": "manual-reboot",
+      "reason": "Host teardown and reboot are manual after build"
+    }
+  ],
+  "skipPagePatterns": [
+    {
+      "pattern": "^chapter07/chroot\\.html$",
+      "handler": "session-chroot-entry",
+      "reason": "Chroot entry page (any book edition path under chapter07/chroot.html)"
+    }
+  ],
+  "contentRules": [
+    {
+      "id": "book-device-placeholders",
+      "handler": "manual-disk",
+      "reason": "Commands contain book replaceable device placeholders",
+      "match": "anyBlock",
+      "pattern": "/dev/<(xxx|yyy|zzz)>|</fff>"
+    },
+    {
+      "id": "host-version-check-heredoc",
+      "handler": "tool-prepare",
+      "reason": "Page only creates/runs version-check.sh from the book",
+      "match": "anyBlock",
+      "pattern": "version-check\\.sh"
+    },
+    {
+      "id": "bulk-wget-sources",
+      "handler": "tool-download",
+      "reason": "Bulk package download via wget-list into $LFS/sources",
+      "match": "allBlocks",
+      "patterns": ["wget --input-file=wget-list", "directory-prefix=.*sources|md5sum -c md5sums"]
+    },
+    {
+      "id": "interactive-chroot-login",
+      "handler": "session-chroot-entry",
+      "reason": "Single chroot /usr/bin/env … bash --login command",
+      "match": "allBlocks",
+      "patterns": ["chroot.*\\$LFS", "bash --login"]
+    },
+    {
+      "id": "host-reboot-teardown",
+      "handler": "manual-reboot",
+      "reason": "logout and umount of $LFS virtual filesystems on the host",
+      "match": "allBlocks",
+      "patterns": ["^logout\\s*$", "umount.*\\$LFS"]
+    },
+    {
+      "id": "pkgmgt-tutorial",
+      "handler": "documentation-only",
+      "reason": "Tutorial package paths (libfoo) and DESTDIR examples",
+      "match": "anyBlock",
+      "pattern": "libfoo|/usr/pkg/libfoo"
+    },
+    {
+      "id": "lfs-user-bashrc-setup",
+      "handler": "session-lfs-environment",
+      "reason": "Creates ~/.bashrc / ~/.bash_profile for the lfs user",
+      "match": "anyBlock",
+      "pattern": "cat > ~/.bashrc|cat > ~/.bash_profile"
+    },
+    {
+      "id": "export-lfs-umask-only",
+      "handler": "orchestrator-env",
+      "reason": "Only sets LFS variable and umask on the host",
+      "match": "allBlocks",
+      "patterns": ["^export LFS=", "^umask 022"]
+    }
+  ],
+  "runAsOverrides": [
+    {
+      "source": "chapter11/theend.html",
+      "runAs": "chroot",
+      "reason": "Release files belong under the built system root, not the host /etc"
+    }
+  ]
+}

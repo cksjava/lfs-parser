@@ -1,0 +1,16 @@
+{
+  "name": "lfs-book-parser",
+  "version": "1.0.0",
+  "description": "Extract LFS book commands into staged bash scripts and orchestrate builds",
+  "type": "module",
+  "scripts": {
+    "extract": "node extract-commands.js",
+    "prepare": "./lfs prepare",
+    "download": "./lfs download",
+    "build": "./lfs build"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.1.2"
+  }
+}
