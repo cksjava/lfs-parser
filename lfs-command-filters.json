@@ -41,11 +41,15 @@
   ],
   "pageRules": {
     "chapter08/glibc.html": {
-      "comment": "Skip test suite (optional for automated builds); use install-locales instead of many localedef; skip interactive timezone helpers",
+      "comment": "Skip test suite; use install-locales; drop Glibc upgrade-only steps (nscd/systemctl/DESTDIR/gcc headers)",
       "dropBlocksMatching": [
         "^make\\s+check\\s*$",
         "grep\\s+[\"']Timed out[\"']",
-        "^localedef\\s"
+        "^localedef\\s",
+        "^rm -f /usr/sbin/nscd\\s*$",
+        "^systemctl disable --now nscd\\s*$",
+        "make DESTDIR=\\$PWD/dest",
+        "rm -rfv \\$DIR/include-fixed"
       ],
       "replaceLocaledefBlock": "make localedata/install-locales",
       "dropLinePatterns": [
