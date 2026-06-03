@@ -72,6 +72,7 @@ class BuildConfig:
     lfs_user_password: str = "lfs"
     groff_paper_size: str = "A4"
     grub_install_device: str = "/dev/sdb"
+    esp_partition: str = ""
     jobs: str = ""
     confirm_each_script: bool = False
     dry_run: bool = False
@@ -133,6 +134,73 @@ def lfs_release_version(cfg: BuildConfig) -> str:
         if m:
             return m.group(1)
     return "13.0-systemd"
+
+
+GPT_ESP_PARTTYPE = "C12A7328-EEF9-4D74-8734-4BA8A48B0F50"
+GPT_BIOS_BOOT_PARTTYPE = "21686148-6449-6E6F-744E-656564454649"
+
+
+def disk_for_block_device(device: str) -> str:
+    """Whole-disk node for a partition (/dev/sdb2 → /dev/sdb)."""
+    name = Path(device).name
+    m = re.fullmatch(r"(nvme\d+n\d+)p\d+", name)
+    if m:
+        return f"/dev/{m.group(1)}"
+    m = re.fullmatch(r"([a-z]+)\d+", name)
+    if m:
+        return f"/dev/{m.group(1)}"
+    return device
+
+
+def _lsblk_tree(device: str) -> dict[str, Any] | None:
+    try:
+        raw = subprocess.check_output(
+            ["lsblk", "-J", "-p", "-o", "NAME,TYPE,PTTYPE,PARTTYPE,FSTYPE", device],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        nodes = json.loads(raw).get("blockdevices") or []
+        return nodes[0] if nodes else None
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError, IndexError):
+        return None
+
+
+def probe_grub_layout(cfg: BuildConfig) -> dict[str, str]:
+    """
+    Choose legacy BIOS (i386-pc) vs UEFI (x86_64-efi) GRUB install.
+    GPT without a BIOS boot partition cannot use i386-pc embedding.
+    """
+    disk = cfg.grub_install_device or disk_for_block_device(cfg.lfs_partition)
+    defaults: dict[str, str] = {
+        "mode": "bios",
+        "target": "i386-pc",
+        "esp_partition": cfg.esp_partition,
+    }
+    tree = _lsblk_tree(disk)
+    if not tree or tree.get("type") != "disk":
+        return defaults
+
+    children = tree.get("children") or []
+    is_gpt = (tree.get("pttype") or "").lower() == "gpt" or any(
+        c.get("pttype") for c in children
+    )
+    bios_grub = False
+    esp = cfg.esp_partition
+    for child in children:
+        if child.get("type") != "part":
+            continue
+        parttype = (child.get("parttype") or "").upper()
+        if parttype == GPT_BIOS_BOOT_PARTTYPE:
+            bios_grub = True
+        if parttype == GPT_ESP_PARTTYPE or (
+            not esp and child.get("fstype") == "vfat"
+        ):
+            esp = child["name"]
+
+    uefi_firmware = Path("/sys/firmware/efi").is_dir()
+    if is_gpt and not bios_grub and uefi_firmware and esp:
+        return {"mode": "efi", "target": "x86_64-efi", "esp_partition": esp}
+    return defaults
 
 
 def network_match_pattern(iface: str) -> str:
@@ -280,6 +348,13 @@ def collect_preferences() -> BuildConfig:
     cfg.grub_install_device = prompt(
         "GRUB install device (MBR/disk, e.g. /dev/sdb)", cfg.grub_install_device
     )
+    grub = probe_grub_layout(cfg)
+    if grub["mode"] == "efi":
+        print(
+            f"\nDetected GPT + ESP on {cfg.grub_install_device} with UEFI firmware; "
+            "will use grub-install --target=x86_64-efi (not legacy i386-pc)."
+        )
+        cfg.esp_partition = prompt("EFI System Partition (ESP)", grub["esp_partition"])
     cfg.swap_partition = prompt("Swap partition (optional, leave empty to skip)", "")
     cfg.filesystem_type = prompt("Filesystem type for LFS partition", cfg.filesystem_type)
     cfg.hostname = prompt("Target hostname", cfg.hostname)
@@ -500,6 +575,13 @@ def host_env(cfg: BuildConfig) -> dict[str, str]:
     env["LFS_PARTITION"] = cfg.lfs_partition
     env["LFS_GRUB_INSTALL_DEVICE"] = cfg.grub_install_device
     env["LFS_GRUB_SET_ROOT"] = grub_set_root_from_partition(cfg.lfs_partition)
+    grub = probe_grub_layout(cfg)
+    env["LFS_GRUB_MODE"] = grub["mode"]
+    env["LFS_GRUB_TARGET"] = grub["target"]
+    if grub["esp_partition"]:
+        env["LFS_ESP_PARTITION"] = grub["esp_partition"]
+    else:
+        env.pop("LFS_ESP_PARTITION", None)
     env["LFS_SWAP_PARTITION"] = cfg.swap_partition
     env["LFS_FILESYSTEM_TYPE"] = cfg.filesystem_type
     env["LFS_ROOT_PASSWORD"] = cfg.root_password

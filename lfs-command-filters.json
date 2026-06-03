@@ -132,9 +132,13 @@
       "dropBlocksMatching": ["^make\\s+menuconfig\\s*$"]
     },
     "chapter10/grub.html": {
-      "comment": "Skip rescue ISO; --target=i386-pc (Ch8 GRUB has no EFI modules on UEFI hosts); parameterize device/grub.cfg",
+      "comment": "Probe EFI vs BIOS; GPT+ESP uses x86_64-efi; legacy uses i386-pc",
       "useGrubBuildConfig": true,
       "dropBlocksMatching": ["grub-mkrescue", "xorriso\\s+-as\\s+cdrecord"]
+    },
+    "chapter08/grub.html": {
+      "comment": "Build i386-pc and x86_64-efi platforms for UEFI-capable hosts",
+      "useGrubBuildPlatforms": true
     },
     "chapter09/network.html": {
       "comment": "Replace book placeholders with host-probed systemd-networkd config",

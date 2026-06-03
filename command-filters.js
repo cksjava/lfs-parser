@@ -284,15 +284,41 @@ fi`;
 }
 
 /** Parameterize GRUB install and grub.cfg; drop optional rescue-ISO steps. */
+function grubInstallBlock() {
+  return `# Automated: GRUB target from build_lfs.py (GPT+ESP/UEFI → x86_64-efi; else i386-pc).
+if [[ "\${LFS_GRUB_MODE:-bios}" == efi ]]; then
+  mkdir -pv /boot/efi
+  if ! mountpoint -q /boot/efi 2>/dev/null; then
+    mount -t vfat "\${LFS_ESP_PARTITION:?LFS_ESP_PARTITION must be set for UEFI GRUB}" /boot/efi
+  fi
+  if ! grep -q '[[:space:]]/boot/efi[[:space:]]' /etc/fstab 2>/dev/null; then
+    echo "\${LFS_ESP_PARTITION} /boot/efi vfat defaults,umask=0077 0 0" >> /etc/fstab
+  fi
+  grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot
+else
+  grub-install --target=i386-pc "\${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"
+fi`;
+}
+
+function applyGrubBuildPlatformsRule(blocks) {
+  return blocks.map((block) => {
+    if (!/^\.\/configure\b/m.test(block.trim())) return block;
+    if (/--with-platform=/.test(block)) return block;
+    return block.replace(
+      /--disable-werror\s*$/,
+      "--disable-werror \\\n            --with-platform=i386-pc,x86_64-efi"
+    );
+  });
+}
+
 function applyGrubBuildConfigRule(blocks) {
   return blocks
     .filter((block) => !/grub-mkrescue|xorriso\s+-as\s+cdrecord/.test(block))
-    .map((block) => {
+    .flatMap((block) => {
+      if (/^grub-install\b/m.test(block.trim())) {
+        return [grubInstallBlock()];
+      }
       let b = block;
-      b = b.replace(
-        /grub-install(?:\s+--target\s+\S+)?\s+\/dev\/\S+/,
-        'grub-install --target=i386-pc "${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"'
-      );
       b = b.replace(/set root=\(hd\d+,\d+\)/, "set root=${LFS_GRUB_SET_ROOT:-(hd1,2)}");
       b = b.replace(
         /root=\/dev\/\S+(\s+ro)/,
@@ -301,7 +327,7 @@ function applyGrubBuildConfigRule(blocks) {
       if (/\/boot\/grub\/grub\.cfg/.test(b)) {
         b = b.replace(/<<\s*"EOF"/, "<< EOF");
       }
-      return b;
+      return [b];
     });
 }
 
@@ -482,6 +508,10 @@ function applyPageRules(blocks, relPath, rules) {
 
   if (pageRule.useGrubBuildConfig) {
     out = applyGrubBuildConfigRule(out);
+  }
+
+  if (pageRule.useGrubBuildPlatforms) {
+    out = applyGrubBuildPlatformsRule(out);
   }
 
   if (pageRule.useHostNetworkConfig) {

@@ -727,6 +727,9 @@ chroot "$LFS" /usr/bin/env -i \\
     LFS_PARTITION="\${LFS_PARTITION:-/dev/sdb2}" \\
     LFS_GRUB_INSTALL_DEVICE="\${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}" \\
     LFS_GRUB_SET_ROOT="\${LFS_GRUB_SET_ROOT:-(hd1,2)}" \\
+    LFS_GRUB_MODE="\${LFS_GRUB_MODE:-bios}" \\
+    LFS_GRUB_TARGET="\${LFS_GRUB_TARGET:-i386-pc}" \\
+    LFS_ESP_PARTITION="\${LFS_ESP_PARTITION:-}" \\
     LFS_HOSTNAME="\${LFS_HOSTNAME:-lfs}" \\
     LFS_RELEASE_VERSION="\${LFS_RELEASE_VERSION:-13.0-systemd}" \\
     LFS_RELEASE_CODENAME="\${LFS_RELEASE_CODENAME:-lfs}" \\
