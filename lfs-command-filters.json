@@ -137,7 +137,7 @@
       "dropBlocksMatching": ["grub-mkrescue", "xorriso\\s+-as\\s+cdrecord"]
     },
     "chapter08/grub.html": {
-      "comment": "Build i386-pc and x86_64-efi platforms for UEFI-capable hosts",
+      "comment": "After LFS pc build, second configure pass installs x86_64-efi (BLFS GRUB-for-EFI)",
       "useGrubBuildPlatforms": true
     },
     "chapter09/network.html": {

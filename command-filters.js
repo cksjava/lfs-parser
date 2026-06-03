@@ -301,14 +301,33 @@ fi`;
 }
 
 function applyGrubBuildPlatformsRule(blocks) {
-  return blocks.map((block) => {
-    if (!/^\.\/configure\b/m.test(block.trim())) return block;
-    if (/--with-platform=/.test(block)) return block;
-    return block.replace(
-      /--disable-werror\s*$/,
-      "--disable-werror \\\n            --with-platform=i386-pc,x86_64-efi"
-    );
-  });
+  const efiPass = `# Automated: install x86_64-efi modules (BLFS GRUB-for-EFI; one platform per configure).
+./configure --prefix=/usr     \\
+            --sysconfdir=/etc \\
+            --disable-efiemu  \\
+            --disable-werror  \\
+            --with-platform=efi \\
+            --target=x86_64
+make
+make -C grub-core install`;
+
+  const result = [];
+  let inserted = false;
+  for (const block of blocks) {
+    let b = block;
+    if (/^\.\/configure\b/m.test(b.trim())) {
+      b = b.replace(/\s*\\\n\s*--with-platform=[^\n\\]+/g, "");
+    }
+    result.push(b);
+    if (!inserted && /^make install$/im.test(b.trim())) {
+      result.push(efiPass);
+      inserted = true;
+    }
+  }
+  if (!inserted) {
+    result.push(efiPass);
+  }
+  return result;
 }
 
 function applyGrubBuildConfigRule(blocks) {
