@@ -185,8 +185,6 @@ function packageDirFromTitle(title) {
  * 2. Parse heading (name-version) and look up in wget-list index
  */
 function resolvePackageTarball(relPath, title, chapter) {
-  if (!PACKAGE_CHAPTERS.has(chapter)) return null;
-
   const index = loadTarballs();
   const exceptions = loadTarballExceptions();
   const normalized = relPath.replace(/\\/g, "/");
@@ -206,6 +204,8 @@ function resolvePackageTarball(relPath, title, chapter) {
       via: "exception",
     };
   }
+
+  if (!PACKAGE_CHAPTERS.has(chapter)) return null;
 
   const pkgDir = packageDirFromTitle(title);
   if (!pkgDir) return null;

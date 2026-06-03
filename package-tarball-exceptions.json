@@ -82,6 +82,11 @@
       "source": "chapter08/jinja2.html",
       "tarball": "jinja2-3.1.6.tar.gz",
       "comment": "Title Jinja2; PyPI uses lowercase"
+    },
+    {
+      "source": "chapter10/kernel.html",
+      "tarball": "linux-6.18.10.tar.xz",
+      "comment": "Ch 10 kernel build; same tarball as Ch 5 linux-headers"
     }
   ]
 }
