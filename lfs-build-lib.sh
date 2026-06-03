@@ -113,7 +113,7 @@ lfs_script_begin() {
   if lfs_script_is_done; then
     lfs_log skip status=skipped reason=already_completed
     echo "lfs-build-lib: skip (already completed): $LFS_SCRIPT_ID"
-    exit 0
+    return 0
   fi
 
   lfs_log start status=running

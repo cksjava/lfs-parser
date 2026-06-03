@@ -148,11 +148,16 @@ def load_state() -> dict[str, Any]:
     return {"completed": [], "lastError": None, "startedAt": None, "finishedAt": None}
 
 
-def load_completed_set(state: dict[str, Any], scripts_root: Path) -> set[str]:
-    """Merge Python state with lfs-build-lib.sh completed-scripts file."""
+def load_completed_set(
+    state: dict[str, Any],
+    scripts_root: Path,
+    cfg: BuildConfig | None = None,
+) -> set[str]:
+    """Merge Python state with completed-scripts on disk (repo and $LFS/tmp)."""
     completed = set(state.get("completed", []))
-    comp_file = scripts_root / COMPLETED_SCRIPTS_NAME
-    if comp_file.exists():
+    for comp_file in completed_script_log_paths(scripts_root, cfg):
+        if not comp_file.exists():
+            continue
         for line in comp_file.read_text().splitlines():
             line = line.strip()
             if line:
@@ -160,15 +165,90 @@ def load_completed_set(state: dict[str, Any], scripts_root: Path) -> set[str]:
     return completed
 
 
-def append_completed_script(scripts_root: Path, script_id: str) -> None:
-    comp_file = scripts_root / COMPLETED_SCRIPTS_NAME
-    comp_file.parent.mkdir(parents=True, exist_ok=True)
-    existing = set()
-    if comp_file.exists():
-        existing = {ln.strip() for ln in comp_file.read_text().splitlines() if ln.strip()}
-    if script_id not in existing:
-        with comp_file.open("a") as fh:
-            fh.write(script_id + "\n")
+def completed_script_log_paths(
+    scripts_root: Path,
+    cfg: BuildConfig | None = None,
+) -> list[Path]:
+    paths = [scripts_root / COMPLETED_SCRIPTS_NAME]
+    if cfg:
+        paths.append(lfs_tmp(cfg) / "lfs-scripts" / COMPLETED_SCRIPTS_NAME)
+    return paths
+
+
+def append_completed_script(
+    scripts_root: Path,
+    script_id: str,
+    cfg: BuildConfig | None = None,
+) -> None:
+    for comp_file in completed_script_log_paths(scripts_root, cfg):
+        comp_file.parent.mkdir(parents=True, exist_ok=True)
+        existing = set()
+        if comp_file.exists():
+            existing = {
+                ln.strip() for ln in comp_file.read_text().splitlines() if ln.strip()
+            }
+        if script_id not in existing:
+            with comp_file.open("a") as fh:
+                fh.write(script_id + "\n")
+
+
+def merge_logs_dir(src: Path, dest: Path) -> None:
+    """Merge session logs and completed-scripts from src into dest."""
+    if not src.is_dir():
+        return
+    dest.mkdir(parents=True, exist_ok=True)
+
+    src_comp = src / COMPLETED_SCRIPTS_NAME.name
+    dest_comp = dest / COMPLETED_SCRIPTS_NAME.name
+    lines: set[str] = set()
+    if dest_comp.exists():
+        lines.update(
+            ln.strip() for ln in dest_comp.read_text().splitlines() if ln.strip()
+        )
+    if src_comp.exists():
+        lines.update(
+            ln.strip() for ln in src_comp.read_text().splitlines() if ln.strip()
+        )
+    if lines:
+        dest_comp.write_text("\n".join(sorted(lines)) + "\n")
+
+    src_events = src / EVENTS_LOG_NAME.name
+    dest_events = dest / EVENTS_LOG_NAME.name
+    if src_events.exists():
+        if dest_events.exists():
+            with dest_events.open("a") as out, src_events.open() as inp:
+                out.write(inp.read())
+        else:
+            shutil.copy2(src_events, dest_events)
+
+    for log in src.glob("build-*.log"):
+        dest_log = dest / log.name
+        if dest_log.exists():
+            with dest_log.open("a") as out, log.open() as inp:
+                out.write(inp.read())
+        else:
+            shutil.copy2(log, dest_log)
+
+
+def persist_build_logs(
+    cfg: BuildConfig,
+    scripts_root: Path,
+    state: dict[str, Any],
+    completed: set[str],
+) -> None:
+    """Copy $LFS/tmp session logs into the repo and refresh state.completed."""
+    src = lfs_tmp(cfg) / "lfs-scripts" / "logs"
+    dest = scripts_root / "logs"
+    merge_logs_dir(src, dest)
+    for comp_file in completed_script_log_paths(scripts_root, cfg):
+        if not comp_file.exists():
+            continue
+        for line in comp_file.read_text().splitlines():
+            line = line.strip()
+            if line:
+                completed.add(line)
+    state["completed"] = sorted(completed)
+    save_state(state)
 
 
 def save_state(state: dict[str, Any]) -> None:
@@ -264,9 +344,20 @@ def lfs_tmp(cfg: BuildConfig) -> Path:
 def sync_scripts_tree(cfg: BuildConfig, scripts_root: Path) -> Path:
     """Copy full lfs-scripts tree to $LFS/tmp (symlinks preserved)."""
     dest = lfs_tmp(cfg) / "lfs-scripts"
+    preserved_logs: Path | None = None
+    prev_logs = dest / "logs"
+    if prev_logs.is_dir():
+        tmp_parent = lfs_tmp(cfg) / ".lfs-logs-preserve"
+        if tmp_parent.exists():
+            shutil.rmtree(tmp_parent)
+        shutil.copytree(prev_logs, tmp_parent)
+        preserved_logs = tmp_parent
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(scripts_root, dest, symlinks=True)
+    if preserved_logs and preserved_logs.is_dir():
+        merge_logs_dir(preserved_logs, dest / "logs")
+        shutil.rmtree(preserved_logs)
     for f in dest.rglob("*.sh"):
         f.chmod(0o755)
     return dest
@@ -494,7 +585,7 @@ def run_ch8_post_host_steps(
             print(f"\nPost-Chapter 8 step failed: {step['script_id']} (exit {code}).")
             return code
         if not cfg.dry_run:
-            mark_completed(state, completed, [step["script_id"]], scripts_root)
+            mark_completed(state, completed, [step["script_id"]], scripts_root, cfg)
             state["lastError"] = None
             save_state(state)
     return 0
@@ -547,10 +638,11 @@ def mark_completed(
     completed: set[str],
     ids: list[str],
     scripts_root: Path,
+    cfg: BuildConfig | None = None,
 ) -> None:
     for sid in ids:
         completed.add(sid)
-        append_completed_script(scripts_root, sid)
+        append_completed_script(scripts_root, sid, cfg)
     state["completed"] = sorted(completed)
 
 
@@ -712,7 +804,7 @@ def main() -> int:
             state["sourcesSyncedToLfs"] = True
             save_state(state)
 
-    completed = load_completed_set(state, scripts_root)
+    completed = load_completed_set(state, scripts_root, cfg)
     build_scripts = scripts_for_build(manifest.get("scripts", []))
     phases = executable_phases(group_phases(build_scripts))
 
@@ -760,7 +852,7 @@ def main() -> int:
                     print(f"\nBuild failed at {entry['script']} (exit {code}).")
                     return code
                 if not cfg.dry_run:
-                    mark_completed(state, completed, [entry["script"]], scripts_root)
+                    mark_completed(state, completed, [entry["script"]], scripts_root, cfg)
                     state["lastError"] = None
                     save_state(state)
         elif ptype in ("lfs", "chroot"):
@@ -785,6 +877,8 @@ def main() -> int:
                     return code
             code = run_session(cfg, ptype, pending, scripts_root, env)
             if code != 0:
+                if not cfg.dry_run:
+                    persist_build_logs(cfg, scripts_root, state, completed)
                 state["lastError"] = {
                     "phase": ptype,
                     "scripts": session_ids,
@@ -795,7 +889,8 @@ def main() -> int:
                 print(f"\n{ptype} session failed (exit {code}). Re-run to resume.")
                 return code
             if not cfg.dry_run:
-                mark_completed(state, completed, session_ids, scripts_root)
+                persist_build_logs(cfg, scripts_root, state, completed)
+                mark_completed(state, completed, session_ids, scripts_root, cfg)
                 state["lastCheckpoint"] = {
                     "phase": ptype,
                     "scripts": session_ids[-1] if session_ids else None,
