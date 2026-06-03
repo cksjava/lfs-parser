@@ -107,11 +107,14 @@ echo "=== Unmounting LFS filesystems at $LFS ==="
 
 failed=0
 for target in \
+  "$LFS/boot/efi" \
+  "$LFS/boot" \
   "$LFS/dev/pts" \
   "$LFS/dev/shm" \
   "$LFS/dev" \
   "$LFS/run" \
   "$LFS/proc" \
+  "$LFS/sys/firmware/efi/efivars" \
   "$LFS/sys" \
   "$LFS/home" \
   "$LFS"

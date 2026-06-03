@@ -12,6 +12,7 @@ Commands:
   prepare    Install Debian/Ubuntu host deps, set /bin/sh -> bash, run version-check.sh
   download   Download lfs-packages-13.0.tar into ~/sources; sync to \$LFS/sources when mounted
   build      Run build_lfs.py (must be root; sources should already be downloaded)
+  chroot     Mount virtfs on \$LFS and start an interactive chroot shell
   unmount    Unmount kernfs under \$LFS, then \$LFS (and swap if configured)
 
 Examples:
@@ -19,6 +20,8 @@ Examples:
   $0 download              # host staging: ~/sources
   $0 download --sync-only  # after mounting LFS at /mnt/lfs
   sudo $0 build
+  sudo $0 chroot
+  sudo $0 chroot --mount
 
 See README.md for full workflow.
 EOF
@@ -36,6 +39,9 @@ case "$cmd" in
     ;;
   build)
     exec python3 "$ROOT/build_lfs.py" "$@"
+    ;;
+  chroot)
+    exec "$ROOT/chroot-lfs.sh" "$@"
     ;;
   unmount)
     exec "$ROOT/unmount-lfs.sh" "$@"

@@ -40,6 +40,7 @@ sudo ./lfs build   # prompts for partition/mount/etc., runs bootstrap, then pack
 | Command | Script | Purpose |
 |---------|--------|---------|
 | `./lfs build` | `build_lfs.py` | **Primary workflow:** config prompts, `bootstrap-lfs.sh` (Ch 2–4), then generated package scripts |
+| `./lfs chroot` | `chroot-lfs.sh` | Interactive chroot with dev/proc/sys/run mounted; use `--mount` if `$LFS` is not mounted yet |
 | `./lfs prepare` | `prepare-host.sh` | Optional: Debian/Ubuntu deps, symlinks, `version-check.sh` (also run by bootstrap on failure) |
 | `./lfs download` | `download-sources.sh` | Optional: `lfs-packages-13.0.tar` → `~/sources` (also run by bootstrap) |
 
