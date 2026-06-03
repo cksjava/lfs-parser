@@ -9,6 +9,7 @@
     "orchestrator-bootstrap": "bootstrap-lfs.sh performs Ch 2–4 host prep before package scripts",
     "orchestrator-kernfs": "build_lfs.py runs mount-kernfs.sh before each chroot session",
     "orchestrator-unmount": "Optional backup/host umount; use ./lfs unmount to reset mounts",
+    "orchestrator-post-ch8": "strip-lfs.sh and cleanup-lfs.sh run on the host after Ch 8 packages",
     "manual-disk": "Partition, mkfs, mount, and fstab need real device names from the operator",
     "manual-reboot": "Interactive host logout, umount, and reboot after the build",
     "documentation-only": "Conceptual or example commands, not part of the automated build",
@@ -69,6 +70,16 @@
       "source": "chapter08/pkgmgt.html",
       "handler": "documentation-only",
       "reason": "Package management examples (libfoo), not real installs"
+    },
+    {
+      "source": "chapter08/stripping.html",
+      "handler": "orchestrator-post-ch8",
+      "reason": "Stripping runs via strip-lfs.sh on the host (fresh chroot), not in the chroot session"
+    },
+    {
+      "source": "chapter08/cleanup.html",
+      "handler": "orchestrator-post-ch8",
+      "reason": "Cleanup runs via cleanup-lfs.sh on the host after stripping"
     },
     {
       "source": "chapter10/fstab.html",

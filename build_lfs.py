@@ -28,8 +28,26 @@ RUNNERS_DIR_NAME = "runners"
 COMPLETED_SCRIPTS_NAME = Path("logs") / "completed-scripts"
 EVENTS_LOG_NAME = Path("logs") / "build-events.jsonl"
 MOUNT_KERNFS_SCRIPT = ROOT / "mount-kernfs.sh"
+STRIP_LFS_SCRIPT = ROOT / "strip-lfs.sh"
+CLEANUP_LFS_SCRIPT = ROOT / "cleanup-lfs.sh"
 BOOTSTRAP_SCRIPT = ROOT / "bootstrap-lfs.sh"
 STAGE_HOST_PREP = "stage-01-host-prep"
+
+CH8_E2FSPROGS_SCRIPT = "stage-05-system-build/0113-08-e2fsprogs.sh"
+CH8_POST_HOST_STEPS: list[dict[str, Any]] = [
+    {
+        "script_id": "stage-05-system-build/0114-08-stripping.sh",
+        "host_script": STRIP_LFS_SCRIPT,
+        "title": "8.85. Stripping",
+        "source": "chapter08/stripping.html",
+    },
+    {
+        "script_id": "stage-05-system-build/0115-08-cleanup.sh",
+        "host_script": CLEANUP_LFS_SCRIPT,
+        "title": "8.86. Cleaning Up",
+        "source": "chapter08/cleanup.html",
+    },
+]
 
 
 @dataclass
@@ -322,6 +340,14 @@ def group_phases(scripts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not entry.get("script"):
             continue
         if phases and phases[-1]["type"] == run_as:
+            prev = phases[-1]["scripts"][-1]
+            if (
+                run_as == "chroot"
+                and prev.get("chapter") == "08"
+                and entry.get("chapter") == "09"
+            ):
+                phases.append({"type": run_as, "scripts": [entry]})
+                continue
             phases[-1]["scripts"].append(entry)
         else:
             phases.append({"type": run_as, "scripts": [entry]})
@@ -420,6 +446,58 @@ def ensure_kernfs_mounted(
         cwd=ROOT,
         dry_run=cfg.dry_run,
     )
+
+
+def ch8_post_steps_pending(completed: set[str]) -> list[dict[str, Any]]:
+    """Strip/cleanup after Ch 8 packages; skipped in generated chroot scripts."""
+    if CH8_E2FSPROGS_SCRIPT not in completed:
+        return []
+    return [s for s in CH8_POST_HOST_STEPS if s["script_id"] not in completed]
+
+
+def run_ch8_post_host_steps(
+    cfg: BuildConfig,
+    env: dict[str, str],
+    completed: set[str],
+    state: dict[str, Any],
+    scripts_root: Path,
+) -> int:
+    pending = ch8_post_steps_pending(completed)
+    if not pending:
+        return 0
+
+    print(
+        "\n=== Post-Chapter 8 host steps "
+        "(strip + cleanup outside chroot session) ==="
+    )
+    for step in pending:
+        script_path = step["host_script"]
+        if not script_path.exists():
+            print(f"Missing host script: {script_path}", file=sys.stderr)
+            return 1
+        print(f"\n--- {step['title']} ---")
+        print(f"    {step['source']}")
+        code = run_cmd(
+            ["bash", str(script_path)],
+            env=env,
+            cwd=ROOT,
+            dry_run=cfg.dry_run,
+        )
+        if code != 0:
+            state["lastError"] = {
+                "script": step["script_id"],
+                "code": code,
+                "phase": "post-ch8",
+                "at": datetime.now(timezone.utc).isoformat(),
+            }
+            save_state(state)
+            print(f"\nPost-Chapter 8 step failed: {step['script_id']} (exit {code}).")
+            return code
+        if not cfg.dry_run:
+            mark_completed(state, completed, [step["script_id"]], scripts_root)
+            state["lastError"] = None
+            save_state(state)
+    return 0
 
 
 def phase_requires_mount(phase: dict[str, Any]) -> bool:
@@ -688,6 +766,13 @@ def main() -> int:
         elif ptype in ("lfs", "chroot"):
             session_ids = [e["script"] for e in pending]
             if ptype == "chroot":
+                first_ch = pending[0].get("chapter") if pending else ""
+                if first_ch == "09":
+                    code = run_ch8_post_host_steps(
+                        cfg, env, completed, state, scripts_root
+                    )
+                    if code != 0:
+                        return code
                 code = ensure_kernfs_mounted(cfg, env, scripts_root)
                 if code != 0:
                     state["lastError"] = {
