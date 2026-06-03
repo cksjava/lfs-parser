@@ -68,6 +68,7 @@ class BuildConfig:
     lfs_group: str = "lfs"
     root_password: str = "lfs"
     lfs_user_password: str = "lfs"
+    groff_paper_size: str = "A4"
     jobs: str = ""
     confirm_each_script: bool = False
     dry_run: bool = False
@@ -122,6 +123,9 @@ def collect_preferences() -> BuildConfig:
     cfg.lfs_group = prompt("LFS build group", cfg.lfs_group)
     cfg.root_password = prompt("Root password", cfg.root_password)
     cfg.lfs_user_password = prompt("LFS user password", cfg.lfs_user_password)
+    cfg.groff_paper_size = prompt(
+        "Groff default paper size (letter or A4)", cfg.groff_paper_size
+    )
     cfg.jobs = prompt("Make parallel jobs (empty = nproc)", cfg.jobs)
 
     return cfg
@@ -327,6 +331,7 @@ def host_env(cfg: BuildConfig) -> dict[str, str]:
     env["LFS_FILESYSTEM_TYPE"] = cfg.filesystem_type
     env["LFS_ROOT_PASSWORD"] = cfg.root_password
     env["LFS_USER_PASSWORD"] = cfg.lfs_user_password
+    env["LFS_GROFF_PAPER_SIZE"] = cfg.groff_paper_size
     env["LFS_HOSTNAME"] = cfg.hostname
     env["LFS_TIMEZONE"] = cfg.timezone
     env["LFS_LOCALE"] = cfg.locale

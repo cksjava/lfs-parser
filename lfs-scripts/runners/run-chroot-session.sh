@@ -38,4 +38,5 @@ chroot "$LFS" /usr/bin/env -i \
     TESTSUITEFLAGS="-j$JOBS" \
     LFS_SOURCES=/sources \
     LFS_SCRIPTS="$CHROOT_SCRIPTS" \
+    LFS_GROFF_PAPER_SIZE="${LFS_GROFF_PAPER_SIZE:-A4}" \
     /bin/bash --login "$ITERATOR" "$CHROOT_SESSION"

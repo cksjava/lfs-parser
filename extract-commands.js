@@ -292,6 +292,13 @@ function pageTitle(html) {
   return title || "untitled";
 }
 
+/** Book replaceables → env vars for unattended builds (see build_lfs.py prompts). */
+function substituteBuildPlaceholders(blocks) {
+  return blocks.map((block) =>
+    block.replace(/<paper_size>/g, '"${LFS_GROFF_PAPER_SIZE:-A4}"')
+  );
+}
+
 function extractCommands(html) {
   const $ = cheerio.load(html, { xml: false });
   const blocks = [];
@@ -711,6 +718,7 @@ chroot "$LFS" /usr/bin/env -i \\
     TESTSUITEFLAGS="-j$JOBS" \\
     LFS_SOURCES=/sources \\
     LFS_SCRIPTS="$CHROOT_SCRIPTS" \\
+    LFS_GROFF_PAPER_SIZE="\${LFS_GROFF_PAPER_SIZE:-A4}" \\
     /bin/bash --login "$ITERATOR" "$CHROOT_SESSION"
 `;
 
@@ -787,6 +795,7 @@ function main() {
         }
         blocks = filtered.blocks;
       }
+      blocks = substituteBuildPlaceholders(blocks);
       const title = pageTitle(html);
       const skipDecision = evaluateScriptSkip(
         { relPath: page.relPath, title },

@@ -6,6 +6,7 @@
     "^make\\s+(?:-[^\\s]+\\s+)*check\\s*$",
     "^make\\s+-k\\s+check\\s*$",
     "^make\\s+test\\b",
+    "^make\\s+test\\s+TESTOPTS=",
     "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root\\s*$",
     "^LC_ALL=C\\.UTF-8\\s+make\\s+test\\b",
     "^TEST_JOBS=.*make\\s+test_harness\\s*$",
@@ -101,6 +102,11 @@
     "chapter08/gmp.html": {
       "comment": "Drop Note admonition placeholder 'ABI=32 ./configure ...'",
       "dropBlocksMatching": ["^ABI=32 ./configure \\.\\.\\."]
+    },
+    "chapter08/Python.html": {
+      "comment": "Skip test suite; --enable-optimizations runs tests during make (PGO)",
+      "dropBlocksMatching": ["^make\\s+test\\b"],
+      "dropLinePatterns": ["--enable-optimizations"]
     }
   },
   "documentation": {
