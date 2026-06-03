@@ -677,13 +677,19 @@ set -euo pipefail
 ${RESOLVE_SCRIPTS_DIR}
 
 LFS="\${LFS:-/mnt/lfs}"
-ITERATOR="$RUNNER_DIR/iterate-session.sh"
+CHROOT_SCRIPTS="/tmp/lfs-scripts"
+ITERATOR="$CHROOT_SCRIPTS/runners/iterate-session.sh"
 CHROOT_SESSION=chroot
 JOBS="\${MAKEFLAGS:--j$(nproc 2>/dev/null || echo 1)}"
 JOBS="\${JOBS#-j}"
 
 if [[ ! -d "$LFS/usr" ]]; then
   echo "Chroot target $LFS does not look like an LFS system tree." >&2
+  exit 1
+fi
+
+if [[ ! -x "$LFS/tmp/lfs-scripts/runners/iterate-session.sh" ]]; then
+  echo "Synced scripts tree missing under $LFS/tmp/lfs-scripts" >&2
   exit 1
 fi
 
@@ -697,6 +703,7 @@ chroot "$LFS" /usr/bin/env -i \\
     MAKEFLAGS="-j$JOBS" \\
     TESTSUITEFLAGS="-j$JOBS" \\
     LFS_SOURCES=/sources \\
+    LFS_SCRIPTS="$CHROOT_SCRIPTS" \\
     /bin/bash --login "$ITERATOR" "$CHROOT_SESSION"
 `;
 
