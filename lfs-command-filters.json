@@ -132,7 +132,7 @@
       "dropBlocksMatching": ["^make\\s+menuconfig\\s*$"]
     },
     "chapter10/grub.html": {
-      "comment": "Skip rescue ISO; parameterize grub-install and grub.cfg from build_lfs.py",
+      "comment": "Skip rescue ISO; --target=i386-pc (Ch8 GRUB has no EFI modules on UEFI hosts); parameterize device/grub.cfg",
       "useGrubBuildConfig": true,
       "dropBlocksMatching": ["grub-mkrescue", "xorriso\\s+-as\\s+cdrecord"]
     },
@@ -159,6 +159,10 @@
     "chapter09/systemd-custom.html": {
       "comment": "Keep getty noclear + tmpfiles.d copy; drop examples and tmp.mount disable",
       "useHostSystemdCustomConfig": true
+    },
+    "chapter11/theend.html": {
+      "comment": "lfs-release / lsb-release / os-release from build prompts (not <your name here>)",
+      "useLfsReleaseConfig": true
     }
   },
   "documentation": {

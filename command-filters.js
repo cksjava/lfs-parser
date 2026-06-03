@@ -290,8 +290,8 @@ function applyGrubBuildConfigRule(blocks) {
     .map((block) => {
       let b = block;
       b = b.replace(
-        /grub-install\s+\/dev\/\S+/,
-        'grub-install "${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"'
+        /grub-install(?:\s+--target\s+\S+)?\s+\/dev\/\S+/,
+        'grub-install --target=i386-pc "${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"'
       );
       b = b.replace(/set root=\(hd\d+,\d+\)/, "set root=${LFS_GRUB_SET_ROOT:-(hd1,2)}");
       b = b.replace(
@@ -429,6 +429,28 @@ cp /usr/lib/tmpfiles.d/tmp.conf /etc/tmpfiles.d`,
   ];
 }
 
+/** §11.1 release identity files from build_lfs.py (not book placeholders). */
+function applyLfsReleaseConfigRule() {
+  return [
+    `echo "\${LFS_RELEASE_VERSION:-13.0-systemd}" > /etc/lfs-release`,
+    `cat > /etc/lsb-release << EOF
+DISTRIB_ID="Linux From Scratch"
+DISTRIB_RELEASE="\${LFS_RELEASE_VERSION:-13.0-systemd}"
+DISTRIB_CODENAME="\${LFS_RELEASE_CODENAME:-lfs}"
+DISTRIB_DESCRIPTION="Linux From Scratch"
+EOF`,
+    `cat > /etc/os-release << EOF
+NAME="Linux From Scratch"
+VERSION="\${LFS_RELEASE_VERSION:-13.0-systemd}"
+ID=lfs
+PRETTY_NAME="Linux From Scratch \${LFS_RELEASE_VERSION:-13.0-systemd}"
+VERSION_CODENAME="\${LFS_RELEASE_CODENAME:-lfs}"
+HOME_URL="https://www.linuxfromscratch.org/lfs/"
+RELEASE_TYPE="stable"
+EOF`,
+  ];
+}
+
 function applyPageRules(blocks, relPath, rules) {
   const pageRule = rules.pageRules[normalizeRelPath(relPath)];
   if (!pageRule) return blocks;
@@ -484,6 +506,10 @@ function applyPageRules(blocks, relPath, rules) {
 
   if (pageRule.useHostSystemdCustomConfig) {
     out = applySystemdCustomConfigRule();
+  }
+
+  if (pageRule.useLfsReleaseConfig) {
+    out = applyLfsReleaseConfigRule();
   }
 
   return out;

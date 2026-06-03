@@ -58,6 +58,7 @@ class BuildConfig:
     swap_partition: str = ""
     filesystem_type: str = "ext4"
     hostname: str = "lfs"
+    release_codename: str = ""
     timezone: str = "UTC"
     locale: str = "en_US.UTF-8"
     keymap: str = "us"
@@ -119,6 +120,19 @@ def grub_set_root_from_partition(partition: str) -> str:
     if m:
         return f"(hd{m.group(1)},{m.group(3)})"
     return "(hd1,2)"
+
+
+def lfs_release_version(cfg: BuildConfig) -> str:
+    """Book body id is lfs-13.0-systemd → release string 13.0-systemd."""
+    book = cfg.resolved_book()
+    for rel in ("index.html", "chapter11/theend.html"):
+        path = book / rel
+        if not path.is_file():
+            continue
+        m = re.search(r'\bid="lfs-([^"]+)"', path.read_text(encoding="utf-8", errors="replace"))
+        if m:
+            return m.group(1)
+    return "13.0-systemd"
 
 
 def network_match_pattern(iface: str) -> str:
@@ -269,6 +283,9 @@ def collect_preferences() -> BuildConfig:
     cfg.swap_partition = prompt("Swap partition (optional, leave empty to skip)", "")
     cfg.filesystem_type = prompt("Filesystem type for LFS partition", cfg.filesystem_type)
     cfg.hostname = prompt("Target hostname", cfg.hostname)
+    cfg.release_codename = prompt(
+        "Release codename (DISTRIB_CODENAME / VERSION_CODENAME)", cfg.hostname
+    )
     cfg.timezone = prompt("Timezone (e.g. UTC or America/New_York)", cfg.timezone)
     cfg.locale = prompt("Locale", cfg.locale)
     cfg.keymap = prompt("Console keymap", cfg.keymap)
@@ -489,6 +506,8 @@ def host_env(cfg: BuildConfig) -> dict[str, str]:
     env["LFS_USER_PASSWORD"] = cfg.lfs_user_password
     env["LFS_GROFF_PAPER_SIZE"] = cfg.groff_paper_size
     env["LFS_HOSTNAME"] = cfg.hostname
+    env["LFS_RELEASE_VERSION"] = lfs_release_version(cfg)
+    env["LFS_RELEASE_CODENAME"] = cfg.release_codename or cfg.hostname
     net = probe_host_network()
     env["LFS_NETWORK_MODE"] = net["mode"]
     env["LFS_NETWORK_MATCH"] = net["match"]
