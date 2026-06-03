@@ -1,0 +1,27 @@
+{
+  "description": "BLFS packages required for automated UEFI GRUB install (not in LFS book). Downloaded by download-sources.sh into ~/sources.",
+  "packages": [
+    {
+      "id": "popt",
+      "tarball": "popt-1.19.tar.gz",
+      "urls": [
+        "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-1.19.tar.gz",
+        "https://github.com/rpm-software-management/popt/releases/download/popt-1.19-release/popt-1.19.tar.gz"
+      ]
+    },
+    {
+      "id": "efivar",
+      "tarball": "efivar-39.tar.gz",
+      "urls": [
+        "https://github.com/rhboot/efivar/archive/refs/tags/39.tar.gz"
+      ]
+    },
+    {
+      "id": "efibootmgr",
+      "tarball": "efibootmgr-18.tar.bz2",
+      "urls": [
+        "https://github.com/rhboot/efibootmgr/releases/download/18/efibootmgr-18.tar.bz2"
+      ]
+    }
+  ]
+}

@@ -82,6 +82,12 @@ fi
 mkdir -p "$HOST_SOURCES" "$DOWNLOAD_DIR"
 chmod -v a+wt "$HOST_SOURCES" 2>/dev/null || true
 
+if [[ -x "$ROOT/download-blfs-extra.sh" ]]; then
+  echo ""
+  echo "Downloading BLFS extra packages (UEFI GRUB dependencies) ..."
+  bash "$ROOT/download-blfs-extra.sh"
+fi
+
 archive="$DOWNLOAD_DIR/$LFS_PACKAGES_NAME"
 
 if [[ -f "$archive" ]]; then

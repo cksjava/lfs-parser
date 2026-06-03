@@ -472,7 +472,70 @@ function emitScript({ stage, page, blocks, index, runAs, titleOverride }) {
 }
 
 /** Dirs under lfs-scripts that are session infrastructure, not per-book package scripts. */
-const PRESERVE_OUTPUT_DIRS = new Set(["runners"]);
+const PRESERVE_OUTPUT_DIRS = new Set(["runners", "blfs-extra"]);
+
+/** Static chroot scripts inserted before a book page (BLFS deps, etc.). */
+const STATIC_CHROOT_BEFORE = {
+  "chapter10/grub.html": [
+    {
+      file: "0122-01-popt.sh",
+      title: "BLFS: Popt-1.19 (UEFI GRUB dependency)",
+      source: "blfs-extra/popt-1.19",
+      package: "popt-1.19",
+    },
+    {
+      file: "0122-02-efivar.sh",
+      title: "BLFS: efivar-39 (UEFI GRUB dependency)",
+      source: "blfs-extra/efivar-39",
+      package: "efivar-39",
+    },
+    {
+      file: "0122-03-efibootmgr.sh",
+      title: "BLFS: efibootmgr-18 (UEFI GRUB dependency)",
+      source: "blfs-extra/efibootmgr-18",
+      package: "efibootmgr-18",
+    },
+  ],
+};
+
+function installBlfsExtra() {
+  const src = path.join(__dirname, "blfs-extra");
+  const dest = path.join(OUTPUT_DIR, "blfs-extra");
+  if (!fs.existsSync(src)) return;
+  fs.cpSync(src, dest, { recursive: true });
+}
+
+function emitStaticChrootScripts(stage, pageRelPath, runAs) {
+  const specs = STATIC_CHROOT_BEFORE[pageRelPath];
+  if (!specs?.length) return [];
+  const stageDir = path.join(OUTPUT_DIR, stage.id);
+  fs.mkdirSync(stageDir, { recursive: true });
+  const entries = [];
+  for (const spec of specs) {
+    const src = path.join(__dirname, "static-scripts/chroot", spec.file);
+    if (!fs.existsSync(src)) {
+      console.warn(`Warning: missing static script: ${src}`);
+      continue;
+    }
+    const scriptRel = `${stage.id}/${spec.file}`;
+    const dest = path.join(OUTPUT_DIR, scriptRel);
+    fs.copyFileSync(src, dest);
+    fs.chmodSync(dest, 0o755);
+    entries.push({
+      stage: stage.id,
+      script: scriptRel,
+      title: spec.title,
+      source: spec.source,
+      chapter: "10",
+      runAs,
+      commandBlocks: 0,
+      tarball: spec.package,
+      tarballVia: "blfs-extra",
+      static: true,
+    });
+  }
+  return entries;
+}
 
 /**
  * Remove generated package scripts under lfs-scripts before a fresh run.
@@ -783,6 +846,7 @@ function main() {
 
   cleanOutput();
   installBuildLib();
+  installBlfsExtra();
 
   const manifest = {
     bookVersion: path.basename(BOOK_DIR),
@@ -905,6 +969,10 @@ function main() {
 
       const runAs = runAsForPage(page.relPath, stage, chapter, skipDecision);
       if (runAs === "skip") continue;
+
+      for (const staticEntry of emitStaticChrootScripts(stage, page.relPath, runAs)) {
+        manifest.scripts.push(staticEntry);
+      }
 
       globalIndex += 1;
       manifest.scripts.push(
