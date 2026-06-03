@@ -22,6 +22,7 @@
     "^chown\\s+-R\\s+tester\\s+\\.\\s*$",
     "^sed\\s+/test_plugin_glvs/",
     "^exec\\s+/usr/bin/bash\\s+--login\\s*$",
+    "^vim\\s+-c\\s+['\"]:options['\"]\\s*$",
     "^tzselect\\s*$",
     "^localedef\\s+",
     "^TIMEOUTFACTOR=.*make\\s+test\\s+",
@@ -66,10 +67,11 @@
       ]
     },
     "chapter08/vim.html": {
-      "comment": "Skip vim test prep (chown/sed) and su tester make test",
+      "comment": "Skip vim test prep, interactive :options doc command, su tester make test",
       "dropBlocksMatching": [
         "chown\\s+-R\\s+tester",
-        "su\\s+tester\\s+-c.*make.*test"
+        "su\\s+tester\\s+-c.*make.*test",
+        "^vim\\s+-c\\s+['\"]:options['\"]"
       ]
     },
     "chapter08/bash.html": {
