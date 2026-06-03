@@ -127,7 +127,7 @@
       ]
     },
     "chapter10/kernel.html": {
-      "comment": "Use host-derived kernel config (localyesconfig) instead of interactive menuconfig",
+      "comment": "Try localyesconfig; fall back to defconfig in chroot, then olddefconfig",
       "useHostKernelConfig": true,
       "dropBlocksMatching": ["^make\\s+menuconfig\\s*$"]
     },

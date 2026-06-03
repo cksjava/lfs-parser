@@ -240,11 +240,17 @@ function applyGlibcLocaleRule(blocks, rule) {
   return result;
 }
 
-/** Replace interactive menuconfig with host-derived kernel configuration. */
+/** Replace interactive menuconfig with automated kernel configuration. */
+function kernelConfigBlock() {
+  return `# Automated: localyesconfig when host config is visible; else defconfig (typical in chroot).
+if ! make localyesconfig; then
+  make defconfig
+fi
+make olddefconfig`;
+}
+
 function applyKernelHostConfigRule(blocks) {
-  const insertComment =
-    "# Automated: configure like the running (host) kernel (localyesconfig + olddefconfig).\n";
-  const insert = `${insertComment}make localyesconfig\nmake olddefconfig`;
+  const insert = kernelConfigBlock();
   const result = [];
   let inserted = false;
 
@@ -262,7 +268,7 @@ function applyKernelHostConfigRule(blocks) {
     if (mrIdx >= 0) {
       result.splice(mrIdx + 1, 0, insert);
     } else {
-      result.unshift(`${insertComment}make localyesconfig\nmake olddefconfig`);
+      result.unshift(kernelConfigBlock());
     }
   }
 
