@@ -75,13 +75,23 @@ for LIB in $online_usrlib; do
     rm /tmp/$LIB
 done
 
-for i in $(find /usr/lib -type f -name \*.so* ! -name \*dbg) \
-         $(find /usr/lib -type f -name \*.a)                 \
+# Only strip ELF binaries and static archives (skip unit files like *.socket matching *.so*).
+strip_debug_if_eligible() {
+    local f=$1
+    local t
+    t=$(file -b "$f" 2>/dev/null) || return 0
+    case "$t" in
+        ELF*|*current\ ar\ archive*) strip --strip-debug "$f" ;;
+    esac
+}
+
+for i in $(find /usr/lib -type f \( -name '*.so' -o -name 'lib*.so.*' -o -name 'ld-*.so.*' \) ! -name '*dbg') \
+         $(find /usr/lib -type f -name '*.a') \
          $(find /usr/{bin,sbin,libexec} -type f); do
     case "$online_usrbin $online_usrlib $save_usrlib" in
         *$(basename $i)* )
             ;;
-        * ) strip --strip-debug $i
+        * ) strip_debug_if_eligible "$i"
             ;;
     esac
 done
