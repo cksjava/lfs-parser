@@ -254,6 +254,17 @@ def sync_scripts_tree(cfg: BuildConfig, scripts_root: Path) -> Path:
     return dest
 
 
+def prepare_lfs_session_tree(cfg: BuildConfig, synced: Path) -> int:
+    """Root prepares $LFS/tmp so the lfs user can write build logs and state."""
+    tmp = lfs_tmp(cfg)
+    tmp.mkdir(parents=True, exist_ok=True)
+    logs_dir = synced / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    owner = f"{cfg.lfs_user}:{cfg.lfs_group}"
+    result = subprocess.run(["chown", "-R", owner, str(tmp)], check=False)
+    return result.returncode
+
+
 def publish_script(cfg: BuildConfig, script_path: Path, dest_subdir: str) -> str:
     dest_dir = lfs_tmp(cfg) / dest_subdir
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -355,6 +366,14 @@ def run_session(
 
     rebuild_session_dir(scripts_root, session, pending)
     synced = sync_scripts_tree(cfg, scripts_root)
+    if session == "lfs" and not cfg.dry_run:
+        code = prepare_lfs_session_tree(cfg, synced)
+        if code != 0:
+            print(
+                f"Failed to chown {lfs_tmp(cfg)} for user {cfg.lfs_user}.",
+                file=sys.stderr,
+            )
+            return code
     env = {**env, "LFS_SCRIPTS": str(synced)}
 
     if session == "lfs":

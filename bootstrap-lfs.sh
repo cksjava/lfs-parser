@@ -164,6 +164,9 @@ ensure_lfs_user() {
   case "$(uname -m)" in
     x86_64) chown -v "$LFS_USER" "$LFS/lib64" ;;
   esac
+
+  mkdir -pv "$LFS/tmp"
+  chown -v "$LFS_USER" "$LFS/tmp"
 }
 
 ensure_host_bashrc_moved() {
