@@ -556,6 +556,11 @@ set -euo pipefail
 SESSION="\${1:?usage: iterate-session.sh <lfs|chroot>}"
 ${RESOLVE_SCRIPTS_DIR}
 
+if [[ "$SESSION" == lfs && -f "$RUNNER_DIR/lfs-user-env.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "$RUNNER_DIR/lfs-user-env.sh"
+fi
+
 SESSION_DIR="$SCRIPTS_DIR/sessions/$SESSION"
 LOG="\${LFS_BUILD_LOG:-$SCRIPTS_DIR/logs/build-\${SESSION}.log}"
 mkdir -p "$(dirname "$LOG")"
@@ -654,7 +659,7 @@ fi
 
 export LFS
 echo "Starting LFS user session (su - $LFS_USER) ..."
-exec su - "$LFS_USER" -c "source $LFS_ENV && exec bash --login $ITERATOR $LFS_SESSION"
+exec su - "$LFS_USER" -c "source $LFS_ENV && exec bash --noprofile --norc $ITERATOR $LFS_SESSION"
 `;
 
   fs.writeFileSync(path.join(runnersDir, "lfs-user-env.sh"), lfsUserEnv, {

@@ -13,6 +13,11 @@ else
   SCRIPTS_DIR="$(cd "$RUNNER_DIR/.." && pwd)"
 fi
 
+if [[ "$SESSION" == lfs && -f "$RUNNER_DIR/lfs-user-env.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "$RUNNER_DIR/lfs-user-env.sh"
+fi
+
 SESSION_DIR="$SCRIPTS_DIR/sessions/$SESSION"
 LOG="${LFS_BUILD_LOG:-$SCRIPTS_DIR/logs/build-${SESSION}.log}"
 mkdir -p "$(dirname "$LOG")"

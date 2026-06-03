@@ -23,4 +23,4 @@ fi
 
 export LFS
 echo "Starting LFS user session (su - $LFS_USER) ..."
-exec su - "$LFS_USER" -c "source $LFS_ENV && exec bash --login $ITERATOR $LFS_SESSION"
+exec su - "$LFS_USER" -c "source $LFS_ENV && exec bash --noprofile --norc $ITERATOR $LFS_SESSION"

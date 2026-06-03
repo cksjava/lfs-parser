@@ -269,6 +269,28 @@ function dropSuToLfsSession(blocks) {
     .filter((b) => b.trim());
 }
 
+/** Use explicit path so commands work even if login profile alters PATH. */
+function useFullCrossGccPath(blocks) {
+  return blocks.map((block) =>
+    block.replace(/\$LFS_TGT-gcc/g, "${LFS}/tools/bin/${LFS_TGT}-gcc")
+  );
+}
+
+/** gcc-pass1 limits.h must target libgcc include/ (under $LFS/tools, not Ch 4.2 layout). */
+function fixGccPass1LimitsHeader(blocks, relPath) {
+  if (normalizeRelPath(relPath) !== "chapter05/gcc-pass1.html") return blocks;
+  return blocks.map((block) => {
+    if (!/print-libgcc-file-name/.test(block)) return block;
+    return [
+      "cd ..",
+      'GCC_BIN="${LFS}/tools/bin/${LFS_TGT}-gcc"',
+      'LIBGCC_INCLUDE="$(dirname "$("$GCC_BIN" -print-libgcc-file-name)")/include"',
+      'mkdir -p "$LIBGCC_INCLUDE"',
+      'cat gcc/limitx.h gcc/glimits.h gcc/limity.h > "$LIBGCC_INCLUDE/limits.h"',
+    ].join("\n");
+  });
+}
+
 /**
  * @param {{ relPath: string }} page
  * @param {string} [filtersPath]
@@ -298,6 +320,8 @@ export function filterCommandBlocks(blocks, page, filtersPath) {
   working = applyPageRules(working, relPath, rules);
   working = replaceInteractivePasswd(working);
   working = dropSuToLfsSession(working);
+  working = useFullCrossGccPath(working);
+  working = fixGccPass1LimitsHeader(working, relPath);
 
   const out = working.filter((b) => b.trim());
   return {
