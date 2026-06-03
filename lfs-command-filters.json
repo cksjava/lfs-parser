@@ -187,7 +187,6 @@
       "^\\s*-D\\s+docdir=/usr/share/doc/",
       "^for\\s+f\\s+in\\s+\\*\\s*$",
       "^\\s+do\\s+install-info\\s+\\$f\\s+dir",
-      "^cd\\s+\\.\\.\\s*$",
       "^tar\\s+-xf\\s+\\.\\./.*-html\\.tar",
       "^tar\\s+.*docs-html\\.tar",
       "^tar\\s+--strip-components=1\\s+\\\\",

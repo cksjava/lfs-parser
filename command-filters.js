@@ -140,6 +140,12 @@ function sanitizeLineForDocumentation(line, docRules) {
   return rmSanitized;
 }
 
+function blockLooksDocumentationRelated(block) {
+  return /\/usr\/share\/(?:doc|info)\b|makeinfo\b|install-info\b|install-html|\.info\.gz|-html\.tar|install_docs-1\.patch/i.test(
+    block
+  );
+}
+
 function applyDocumentationFilters(blocks, rules) {
   const doc = rules.documentation;
   if (!doc?.dropLinePatterns?.length && !doc?.dropBlockPatterns?.length) {
@@ -152,8 +158,9 @@ function applyDocumentationFilters(blocks, rules) {
 
     const lines = block.split("\n");
     const kept = [];
+    const docBlock = blockLooksDocumentationRelated(block);
     for (const line of lines) {
-      if (shouldDropLine(line, doc.dropLinePatterns)) continue;
+      if (docBlock && shouldDropLine(line, doc.dropLinePatterns)) continue;
       const sanitized = sanitizeLineForDocumentation(line, doc);
       if (sanitized != null && sanitized.trim()) kept.push(sanitized);
     }

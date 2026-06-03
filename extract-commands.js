@@ -217,18 +217,25 @@ function resolvePackageTarball(relPath, title, chapter) {
 
 function preambleForPackage(relPath, title, chapter) {
   const resolved = resolvePackageTarball(relPath, title, chapter);
-  if (!resolved) return [];
+  if (!resolved) return { preamble: [], postamble: "" };
   const { tarball, extractDir } = resolved;
-  return [
-    [
+  return {
+    preamble: [
+      [
+        'cd "${LFS_SOURCES:-$LFS/sources}"',
+        `pkg=${JSON.stringify(tarball)}`,
+        `dir=${JSON.stringify(extractDir)}`,
+        'rm -rf "$dir"',
+        'tar -xf "$pkg"',
+        'cd "$dir"',
+      ].join("\n"),
+    ],
+    postamble: [
+      "# --- cleanup extracted sources ---",
       'cd "${LFS_SOURCES:-$LFS/sources}"',
-      `pkg=${JSON.stringify(tarball)}`,
-      `dir=${JSON.stringify(extractDir)}`,
       'rm -rf "$dir"',
-      'tar -xf "$pkg"',
-      'cd "$dir"',
     ].join("\n"),
-  ];
+  };
 }
 
 function stageForChapter(chapter) {
@@ -350,7 +357,7 @@ function buildTrackingHeader(scriptRel, meta) {
 const BUILD_TRACKING_FOOTER = ["lfs_script_finish success", ""].join("\n");
 
 function writeScriptBody(blocks, page) {
-  const preamble = preambleForPackage(
+  const { preamble, postamble } = preambleForPackage(
     page.relPath,
     page.title,
     page.chapter
@@ -365,7 +372,12 @@ function writeScriptBody(blocks, page) {
     })
     .filter(Boolean)
     .join("\n\n");
-  return body ? `${body}\n\n${BUILD_TRACKING_FOOTER}` : BUILD_TRACKING_FOOTER;
+  const tail = postamble
+    ? `${body ? `${body}\n\n` : ""}${postamble}\n\n${BUILD_TRACKING_FOOTER}`
+    : body
+      ? `${body}\n\n${BUILD_TRACKING_FOOTER}`
+      : BUILD_TRACKING_FOOTER;
+  return tail;
 }
 
 function emitScript({ stage, page, blocks, index, runAs, titleOverride }) {
