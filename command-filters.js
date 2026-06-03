@@ -77,7 +77,17 @@ function filterBlockLines(block, linePatterns) {
 }
 
 function blockMatchesAny(block, patterns) {
-  return patterns.some((re) => re.test(block));
+  const trimmed = block.trim();
+  return patterns.some((re) => {
+    // Patterns with explicit newlines target multi-line blocks; keep multiline ^/$.
+    if (/\\n|\\r/.test(re.source)) {
+      return re.test(trimmed);
+    }
+    // Otherwise match the whole block only — not a single line inside a larger block.
+    const flags = re.flags.replace(/m/g, "");
+    const full = new RegExp(`^(?:${re.source})$`, flags);
+    return full.test(trimmed);
+  });
 }
 
 function isConfigureLikeLine(line) {
