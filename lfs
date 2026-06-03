@@ -12,6 +12,7 @@ Commands:
   prepare    Install Debian/Ubuntu host deps, set /bin/sh -> bash, run version-check.sh
   download   Download lfs-packages-13.0.tar into ~/sources; sync to \$LFS/sources when mounted
   build      Run build_lfs.py (must be root; sources should already be downloaded)
+  unmount    Unmount kernfs under \$LFS, then \$LFS (and swap if configured)
 
 Examples:
   sudo $0 prepare
@@ -35,6 +36,9 @@ case "$cmd" in
     ;;
   build)
     exec python3 "$ROOT/build_lfs.py" "$@"
+    ;;
+  unmount)
+    exec "$ROOT/unmount-lfs.sh" "$@"
     ;;
   ""|-h|--help|help)
     usage

@@ -27,7 +27,7 @@ CONFIG_FILE = ROOT / "lfs-build-config.json"
 RUNNERS_DIR_NAME = "runners"
 COMPLETED_SCRIPTS_NAME = Path("logs") / "completed-scripts"
 EVENTS_LOG_NAME = Path("logs") / "build-events.jsonl"
-KERNFS_SCRIPT_REL = "stage-04-chroot/0026-07-kernfs.sh"
+MOUNT_KERNFS_SCRIPT = ROOT / "mount-kernfs.sh"
 BOOTSTRAP_SCRIPT = ROOT / "bootstrap-lfs.sh"
 STAGE_HOST_PREP = "stage-01-host-prep"
 
@@ -405,26 +405,21 @@ def ensure_kernfs_mounted(
 ) -> int:
     """
     Mount dev/proc/sys on $LFS before a chroot session.
-    cleanup-host (Ch 7.13.2) umounts them; Ch8+ needs them again.
-    No-op if already mounted (e.g. first chroot right after root kernfs phase).
+    No-op if already mounted (mount-kernfs.sh checks $LFS/proc).
     """
-    script = scripts_root / KERNFS_SCRIPT_REL
-    if not script.exists():
-        print(f"Warning: kernfs script not found: {script}", file=sys.stderr)
+    if not MOUNT_KERNFS_SCRIPT.exists():
+        print(f"Warning: kernfs script not found: {MOUNT_KERNFS_SCRIPT}", file=sys.stderr)
         return 0
 
     lfs = cfg.lfs_mount
-    wrapper = (
-        f'export LFS="{lfs}"\n'
-        f'if mountpoint -q "$LFS/proc" 2>/dev/null; then\n'
-        f'  echo "Kernfs already mounted under $LFS"\n'
-        f'  exit 0\n'
-        f"fi\n"
-        f'echo "Mounting virtual kernel filesystems on $LFS ..."\n'
-        f"bash {script!r}\n"
-    )
     print(f"\n=== Ensure kernfs on {lfs} (before chroot session) ===")
-    return run_cmd(["bash", "-c", wrapper], env=env, cwd=ROOT, dry_run=cfg.dry_run)
+    mount_env = {**env, "LFS": lfs}
+    return run_cmd(
+        ["bash", str(MOUNT_KERNFS_SCRIPT)],
+        env=mount_env,
+        cwd=ROOT,
+        dry_run=cfg.dry_run,
+    )
 
 
 def phase_requires_mount(phase: dict[str, Any]) -> bool:
@@ -504,6 +499,14 @@ def reset_build_logs(scripts_root: Path) -> None:
 
 
 def unmount_lfs(cfg: BuildConfig) -> None:
+    script = ROOT / "unmount-lfs.sh"
+    env = os.environ.copy()
+    env["LFS"] = cfg.lfs_mount
+    if cfg.swap_partition:
+        env["LFS_SWAP_PARTITION"] = cfg.swap_partition
+    if script.exists():
+        subprocess.run(["bash", str(script), "--lazy"], env=env, check=False)
+        return
     mount = cfg.lfs_mount
     if is_lfs_mounted(mount):
         print(f"Unmounting {mount} ...")

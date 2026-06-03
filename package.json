@@ -7,7 +7,8 @@
     "extract": "node extract-commands.js",
     "prepare": "./lfs prepare",
     "download": "./lfs download",
-    "build": "./lfs build"
+    "build": "./lfs build",
+    "unmount": "./lfs unmount"
   },
   "license": "MIT",
   "dependencies": {

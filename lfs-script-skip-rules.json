@@ -7,6 +7,8 @@
     "tool-download": "./lfs download (lfs-packages tarball + md5sums)",
     "orchestrator-env": "build_lfs.py exports LFS, MAKEFLAGS, and related host env",
     "orchestrator-bootstrap": "bootstrap-lfs.sh performs Ch 2–4 host prep before package scripts",
+    "orchestrator-kernfs": "build_lfs.py runs mount-kernfs.sh before each chroot session",
+    "orchestrator-unmount": "Optional backup/host umount; use ./lfs unmount to reset mounts",
     "manual-disk": "Partition, mkfs, mount, and fstab need real device names from the operator",
     "manual-reboot": "Interactive host logout, umount, and reboot after the build",
     "documentation-only": "Conceptual or example commands, not part of the automated build",
@@ -57,6 +59,11 @@
       "source": "chapter04/addinguser.html",
       "handler": "orchestrator-bootstrap",
       "reason": "LFS user creation is handled by bootstrap-lfs.sh (book §4.3)"
+    },
+    {
+      "source": "chapter07/kernfs.html",
+      "handler": "orchestrator-kernfs",
+      "reason": "Virtual kernel filesystem mounts are handled by mount-kernfs.sh via build_lfs.py"
     },
     {
       "source": "chapter08/pkgmgt.html",

@@ -111,6 +111,11 @@ const SPLIT_PAGES = new Map([
       hostSlug: "07-cleanup-host",
       hostTitle: "7.13.2 Backup (host root, outside chroot)",
       hostStart: /^exit$/m,
+      skipHost: {
+        handler: "orchestrator-unmount",
+        reason:
+          "Optional backup and host umount; ./lfs unmount resets virtual filesystems",
+      },
     },
   ],
 ]);
@@ -818,17 +823,33 @@ function main() {
           );
         }
         if (hostBlocks.length) {
-          globalIndex += 1;
-          manifest.scripts.push(
-            emitScript({
-              stage,
-              page: { ...page, chapter, title, slug: splitCfg.hostSlug },
-              blocks: hostBlocks,
-              index: globalIndex,
-              runAs: "root",
-              titleOverride: splitCfg.hostTitle,
-            })
-          );
+          if (splitCfg.skipHost) {
+            manifest.skipStats.explicit += 1;
+            manifest.scripts.push({
+              stage: stage.id,
+              script: null,
+              title: splitCfg.hostTitle,
+              source: page.relPath,
+              chapter,
+              runAs: "skip",
+              commandBlocks: hostBlocks.length,
+              skipHandler: splitCfg.skipHost.handler,
+              skipReason: splitCfg.skipHost.reason,
+              skipMatchedRule: "splitPages",
+            });
+          } else {
+            globalIndex += 1;
+            manifest.scripts.push(
+              emitScript({
+                stage,
+                page: { ...page, chapter, title, slug: splitCfg.hostSlug },
+                blocks: hostBlocks,
+                index: globalIndex,
+                runAs: "root",
+                titleOverride: splitCfg.hostTitle,
+              })
+            );
+          }
         }
         continue;
       }
