@@ -106,7 +106,10 @@ def collect_preferences() -> BuildConfig:
         "Download packages via wget-list now? (normally use ./lfs download first)",
         False,
     )
-    cfg.sources_dir = prompt("Sources directory (empty = $LFS/sources)", "")
+    cfg.sources_dir = prompt(
+        "Sources on LFS disk (empty = $LFS/sources; host staging is ~/sources)",
+        "",
+    )
     cfg.confirm_each_script = prompt_bool("Confirm before each script?", False)
     cfg.dry_run = prompt_bool("Dry run (print commands only)?", False)
 
@@ -209,12 +212,17 @@ def nproc_jobs() -> str:
         return "1"
 
 
+def host_sources_dir() -> Path:
+    return Path(os.environ.get("LFS_HOST_SOURCES", str(Path.home() / "sources")))
+
+
 def host_env(cfg: BuildConfig) -> dict[str, str]:
     env = os.environ.copy()
     jobs = cfg.jobs or nproc_jobs()
     env["LFS"] = cfg.lfs_mount
     env["LFS_MOUNT"] = cfg.lfs_mount
     env["LFS_TGT"] = env.get("LFS_TGT") or detect_lfs_tgt()
+    env["LFS_HOST_SOURCES"] = str(host_sources_dir())
     env["LFS_SOURCES"] = str(cfg.resolved_sources())
     env["LFS_SCRIPTS_DIR"] = str(cfg.resolved_scripts())
     env["LFS_BOOK_DIR"] = str(cfg.resolved_book())
@@ -428,6 +436,40 @@ def phase_requires_mount(phase: dict[str, Any]) -> bool:
     return phase["type"] in ("lfs", "chroot")
 
 
+def ensure_sources_synced_to_lfs(
+    cfg: BuildConfig, state: dict[str, Any], env: dict[str, str]
+) -> int:
+    """Copy ~/sources (host staging) to $LFS/sources when the LFS partition is mounted."""
+    if cfg.dry_run or state.get("sourcesSyncedToLfs"):
+        return 0
+    host = host_sources_dir()
+    target = cfg.resolved_sources()
+    if host.resolve() == target.resolve():
+        state["sourcesSyncedToLfs"] = True
+        save_state(state)
+        return 0
+    if not host.is_dir() or not any(host.iterdir()):
+        print(
+            f"\nNo package sources in {host}. Run ./lfs download first.",
+            file=sys.stderr,
+        )
+        return 1
+    script = ROOT / "download-sources.sh"
+    sync_env = {**env, "LFS": cfg.lfs_mount}
+    if cfg.sources_dir:
+        sync_env["LFS_SOURCES"] = cfg.sources_dir
+    print(f"\nSyncing sources from {host} to {target} ...")
+    result = subprocess.run(
+        ["bash", str(script), "--sync-only"],
+        env=sync_env,
+    )
+    if result.returncode != 0:
+        return result.returncode
+    state["sourcesSyncedToLfs"] = True
+    save_state(state)
+    return 0
+
+
 def mark_completed(
     state: dict[str, Any],
     completed: set[str],
@@ -516,6 +558,9 @@ def main() -> int:
                 )
                 print("Mount it, then re-run to resume.")
                 return 1
+            code = ensure_sources_synced_to_lfs(cfg, state, env)
+            if code != 0:
+                return code
 
         print(f"\n######## Phase: {phase_label(phase)} ########")
 

@@ -100,5 +100,5 @@ fi
 
 echo ""
 echo "Host is ready for LFS (packages installed, symlinks set, version check passed)."
-echo "Next: ./lfs download   # fetch lfs-packages-13.0.tar into \$LFS/sources"
+echo "Next: ./lfs download   # fetch lfs-packages-13.0.tar into ~/sources (sync to \$LFS/sources when mounted)"
 echo "Then:  ./lfs build      # run the build orchestrator (as root)"

@@ -10,13 +10,13 @@ Usage: $0 <command> [options]
 
 Commands:
   prepare    Install Debian/Ubuntu host deps, set /bin/sh -> bash, run version-check.sh
-  download   Download lfs-packages-13.0.tar (axel, 100 connections) into \$LFS/sources
+  download   Download lfs-packages-13.0.tar into ~/sources; sync to \$LFS/sources when mounted
   build      Run build_lfs.py (must be root; sources should already be downloaded)
 
 Examples:
   sudo $0 prepare
-  sudo $0 download
-  sudo LFS=/mnt/lfs $0 download
+  $0 download              # host staging: ~/sources
+  $0 download --sync-only  # after mounting LFS at /mnt/lfs
   sudo $0 build
 
 See README.md for full workflow.

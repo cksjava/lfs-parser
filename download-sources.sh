@@ -3,6 +3,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sources-lib.sh
+source "$ROOT/sources-lib.sh"
+
 BOOK_DIR="${LFS_BOOK_DIR:-$ROOT/13.0}"
 
 # Stable book: all packages in one tarball (Chapter 3.1, mirrors.html#files)
@@ -16,46 +19,68 @@ LFS_PACKAGES_URLS=(
 )
 
 AXEL_CONNECTIONS="${AXEL_CONNECTIONS:-100}"
-LFS="${LFS:-/mnt/lfs}"
-SOURCES="${LFS_SOURCES:-$LFS/sources}"
-DOWNLOAD_DIR="${LFS_DOWNLOAD_DIR:-$SOURCES}"
+HOST_SOURCES="$(host_sources_dir)"
+DOWNLOAD_DIR="${LFS_DOWNLOAD_DIR:-$HOST_SOURCES}"
 
 usage() {
   cat <<EOF
 Usage: $0 [options]
 
-Download the LFS 13.0-systemd all-packages tarball and unpack into sources.
+Download the LFS 13.0-systemd all-packages tarball, extract into the host
+staging directory, verify md5sums, and optionally sync to \$LFS/sources when
+the LFS partition is mounted.
+
+Host staging (download + extract):
+  ${HOST_SOURCES}
+  (override with LFS_HOST_SOURCES)
+
+LFS target (copy only when \$LFS is a mount point):
+  $(lfs_target_sources_dir)
+  (override with LFS and LFS_SOURCES)
 
 Environment:
+  LFS_HOST_SOURCES Host staging dir (default: ~/sources)
   LFS              LFS mount point (default: /mnt/lfs)
-  LFS_SOURCES      Sources directory (default: \$LFS/sources)
-  LFS_DOWNLOAD_DIR Where to store the .tar while downloading (default: sources dir)
+  LFS_SOURCES      Target on LFS disk (default: \$LFS/sources)
+  LFS_DOWNLOAD_DIR Where to store the .tar while downloading (default: host staging)
   LFS_PACKAGES_URL Override mirror URL for ${LFS_PACKAGES_NAME}
   AXEL_CONNECTIONS Parallel connections for axel (default: 100)
   LFS_BOOK_DIR     Book tree for md5sums (default: $ROOT/13.0)
+  LFS_BOOK_VERSION Top-level dir name inside tarball to flatten (default: 13.0)
 
 Options:
   -h, --help       Show this help
   --skip-md5       Do not run md5sum -c after extract
+  --sync-only      Only sync host staging -> \$LFS/sources (requires mount)
+  --no-sync        Do not attempt sync after download/extract
 EOF
 }
 
 SKIP_MD5=0
+SYNC_ONLY=0
+NO_SYNC=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --skip-md5) SKIP_MD5=1; shift ;;
+    --sync-only) SYNC_ONLY=1; shift ;;
+    --no-sync) NO_SYNC=1; shift ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+if [[ "$SYNC_ONLY" -eq 1 ]]; then
+  sync_host_sources_to_lfs "$HOST_SOURCES" "$(lfs_mount_default)" "$(lfs_target_sources_dir)"
+  exit $?
+fi
 
 if ! command -v axel >/dev/null 2>&1; then
   echo "axel not found. Run: sudo ./lfs prepare" >&2
   exit 1
 fi
 
-mkdir -p "$SOURCES" "$DOWNLOAD_DIR"
-chmod -v a+wt "$SOURCES" 2>/dev/null || true
+mkdir -p "$HOST_SOURCES" "$DOWNLOAD_DIR"
+chmod -v a+wt "$HOST_SOURCES" 2>/dev/null || true
 
 archive="$DOWNLOAD_DIR/$LFS_PACKAGES_NAME"
 
@@ -80,37 +105,36 @@ else
   echo "Downloaded from: $picked_url"
 fi
 
-echo "Extracting into $SOURCES ..."
-tar -xf "$archive" -C "$SOURCES"
-
-# Flatten if the tarball has a single top-level directory (e.g. 13.0/)
-top="$(find "$SOURCES" -mindepth 1 -maxdepth 1 -type d | head -1)"
-if [[ -n "$top" ]] && [[ "$(find "$SOURCES" -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ]]; then
-  if [[ -z "$(find "$SOURCES" -mindepth 1 -maxdepth 1 -type f | head -1)" ]]; then
-    echo "Flattening $top into $SOURCES"
-    shopt -s dotglob
-    mv "$top"/* "$SOURCES"/
-    shopt -u dotglob
-    rmdir "$top" 2>/dev/null || true
-  fi
-fi
+echo "Extracting into $HOST_SOURCES ..."
+tar -xf "$archive" -C "$HOST_SOURCES"
+flatten_sources_dir "$HOST_SOURCES"
 
 md5_file="$BOOK_DIR/md5sums"
 if [[ "$SKIP_MD5" -eq 0 && -f "$md5_file" ]]; then
-  cp -f "$md5_file" "$SOURCES/md5sums"
+  cp -f "$md5_file" "$HOST_SOURCES/md5sums"
   echo "Verifying checksums (md5sums from book) ..."
   (
-    cd "$SOURCES"
+    cd "$HOST_SOURCES"
     md5sum -c md5sums
   )
 else
   echo "Skipped md5 verification (missing $md5_file or --skip-md5)"
 fi
 
-if [[ "$(id -u)" -eq 0 ]]; then
-  chown root:root "$SOURCES"/* 2>/dev/null || true
+echo ""
+echo "Sources ready on host: $HOST_SOURCES"
+
+if [[ "$NO_SYNC" -eq 0 ]]; then
+  if mountpoint -q "$(lfs_mount_default)" 2>/dev/null; then
+    sync_host_sources_to_lfs "$HOST_SOURCES" "$(lfs_mount_default)" "$(lfs_target_sources_dir)" || true
+  else
+    echo ""
+    echo "LFS is not mounted at $(lfs_mount_default)."
+    echo "After you mount the LFS partition there, run:"
+    echo "  ./lfs download --sync-only"
+    echo "  (or ./lfs build will sync before phases that need \$LFS/sources)"
+  fi
 fi
 
 echo ""
-echo "Sources ready in $SOURCES"
-echo "Next: sudo ./lfs build"
+echo "Next: mount \$LFS if needed, sync sources, then sudo ./lfs build"

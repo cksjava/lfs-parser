@@ -31,8 +31,8 @@ chmod +x lfs prepare-host.sh download-sources.sh version-check.sh
 
 # On Debian/Ubuntu (LFS Chapter 2 host requirements):
 sudo ./lfs prepare    # apt packages, /bin/sh -> bash, version-check.sh
-sudo ./lfs download   # lfs-packages-13.0.tar via axel (100 connections)
-sudo ./lfs build      # build orchestrator (root)
+./lfs download        # lfs-packages-13.0.tar -> ~/sources (no LFS mount required)
+sudo ./lfs build      # build orchestrator (root); syncs ~/sources -> \$LFS/sources when mounted
 ```
 
 ### Three-step workflow
@@ -40,7 +40,7 @@ sudo ./lfs build      # build orchestrator (root)
 | Command | Script | Purpose |
 |---------|--------|---------|
 | `./lfs prepare` | `prepare-host.sh` | Debian/Ubuntu build deps, book symlinks (`/bin/sh` → bash, `awk` → gawk, `yacc` → bison), install **axel**, run **`version-check.sh`** |
-| `./lfs download` | `download-sources.sh` | Download **`lfs-packages-13.0.tar`** from LFS file mirrors (Chapter 3.1), extract to `$LFS/sources`, verify **md5sums** |
+| `./lfs download` | `download-sources.sh` | Download **`lfs-packages-13.0.tar`**, extract and verify in **`~/sources`** (`LFS_HOST_SOURCES`); copy to **`$LFS/sources`** only when `$LFS` is mounted (or `./lfs download --sync-only`) |
 | `./lfs build` | `build_lfs.py` | Run generated package scripts in manifest order |
 
 `version-check.sh` is the script from LFS 13.0-systemd §2.2; `prepare` runs it automatically and fails if the host is unsuitable.
