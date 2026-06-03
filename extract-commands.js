@@ -220,18 +220,22 @@ function resolvePackageTarball(relPath, title, chapter) {
   };
 }
 
+function packageLabelFromTarball(tarball) {
+  return tarball.replace(/\.(tar\.(gz|xz|bz2)|tgz|tar|zip)$/i, "");
+}
+
 function preambleForPackage(relPath, title, chapter) {
   const resolved = resolvePackageTarball(relPath, title, chapter);
   if (!resolved) return { preamble: [], postamble: "" };
-  const { tarball, extractDir } = resolved;
+  const { tarball } = resolved;
   return {
     preamble: [
       [
         'cd "${LFS_SOURCES:-$LFS/sources}"',
         `pkg=${JSON.stringify(tarball)}`,
-        `dir=${JSON.stringify(extractDir)}`,
+        'dir=$(lfs_tarball_topdir "$pkg")',
         'rm -rf "$dir"',
-        'tar -xf "$pkg"',
+        'lfs_extract_archive "$pkg"',
         'cd "$dir"',
       ].join("\n"),
     ],
@@ -409,7 +413,7 @@ function emitScript({ stage, page, blocks, index, runAs, titleOverride }) {
   if (resolved) {
     headerLines.push(
       `# Tarball: ${resolved.tarball} (${resolved.via})`,
-      `# Extract dir: ${resolved.extractDir}`
+      "# Extract dir: detected at runtime (lfs_tarball_topdir)"
     );
   }
   headerLines.push(
@@ -419,9 +423,7 @@ function emitScript({ stage, page, blocks, index, runAs, titleOverride }) {
   );
 
   const scriptRel = path.relative(OUTPUT_DIR, path.join(stageDir, scriptName)).replace(/\\/g, "/");
-  const packageName = resolved
-    ? resolved.extractDir || resolved.tarball.replace(/\.tar.*$/i, "")
-    : "";
+  const packageName = resolved ? packageLabelFromTarball(resolved.tarball) : "";
 
   const header = [
     ...headerLines,

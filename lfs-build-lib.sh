@@ -5,7 +5,85 @@
 [[ -n "${LFS_BUILD_LIB_LOADED:-}" ]] && return 0
 LFS_BUILD_LIB_LOADED=1
 
-LFS_BUILD_LIB_VERSION=1
+LFS_BUILD_LIB_VERSION=2
+
+# List archive member paths (one per line).
+lfs_archive_list_members() {
+  local archive=$1
+  case "$archive" in
+    *.zip)
+      if ! command -v unzip >/dev/null 2>&1; then
+        echo "lfs_archive_list_members: unzip required for $archive" >&2
+        return 1
+      fi
+      unzip -Z1 "$archive"
+      ;;
+    *.tar.xz|*.tar.gz|*.tar.bz2|*.tgz|*.tar)
+      tar -tf "$archive"
+      ;;
+    *)
+      echo "lfs_archive_list_members: unsupported archive: $archive" >&2
+      return 1
+      ;;
+  esac
+}
+
+# Print the sole top-level directory name inside an archive.
+lfs_tarball_topdir() {
+  local archive=$1
+  if [[ ! -f "$archive" ]]; then
+    echo "lfs_tarball_topdir: not found: $archive" >&2
+    return 1
+  fi
+
+  local -a tops=()
+  local line top t seen
+  while IFS= read -r line; do
+    line=${line#./}
+    [[ -z "$line" ]] && continue
+    if [[ "$line" == */* ]]; then
+      top=${line%%/*}
+    else
+      top=$line
+    fi
+    [[ -z "$top" ]] && continue
+    seen=0
+    for t in "${tops[@]}"; do
+      if [[ "$t" == "$top" ]]; then
+        seen=1
+        break
+      fi
+    done
+    [[ "$seen" == 0 ]] && tops+=("$top")
+  done < <(lfs_archive_list_members "$archive")
+
+  if ((${#tops[@]} != 1)); then
+    echo "lfs_tarball_topdir: expected one top-level directory in $archive, found: ${tops[*]:-(none)}" >&2
+    return 1
+  fi
+  printf '%s\n' "${tops[0]}"
+}
+
+# Extract a source archive in the current directory (tar.xz/gz/bz2/tar, zip).
+lfs_extract_archive() {
+  local archive=$1
+  case "$archive" in
+    *.tar.xz|*.tar.gz|*.tar.bz2|*.tgz|*.tar)
+      tar -xf "$archive"
+      ;;
+    *.zip)
+      if ! command -v unzip >/dev/null 2>&1; then
+        echo "lfs_extract_archive: unzip required for $archive" >&2
+        return 1
+      fi
+      unzip -q "$archive"
+      ;;
+    *)
+      echo "lfs_extract_archive: unsupported archive: $archive" >&2
+      return 1
+      ;;
+  esac
+}
 
 # --- paths (override with env) ---
 lfs_build_lib_init() {
