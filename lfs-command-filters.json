@@ -236,7 +236,6 @@
       "install_docs-1\\.patch"
     ],
     "dropBlockPatterns": [
-      "^make\\s+-C\\s+doc\\s+install-html",
       "makeinfo\\s+--",
       "pushd\\s+/usr/share/info",
       "gunzip\\s+.*\\.info\\.gz",

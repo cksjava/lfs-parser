@@ -124,7 +124,24 @@ function cleanupLineContinuations(block) {
   const kept = [];
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
-    const next = lines.slice(i + 1).find((l) => l.trim());
+    if (!line.trim()) continue;
+
+    let j = i + 1;
+    while (j < lines.length && !lines[j].trim()) j++;
+    const next = j < lines.length ? lines[j] : null;
+    const trimmed = line.trim().replace(/\s*\\\s*$/, "");
+
+    // e.g. tar: FORCE_UNSAFE_CONFIGURE=1 \ then ./configure — prefix form exports to configure.
+    if (
+      next &&
+      /^[A-Za-z_][A-Za-z0-9_]*=\S+/.test(trimmed) &&
+      /^\.\/configure\b/.test(next.trim())
+    ) {
+      kept.push(`${trimmed} ${next.trim()}`);
+      i = j;
+      continue;
+    }
+
     const continues =
       next &&
       (/^\s+--/.test(next) ||
@@ -338,6 +355,9 @@ export function filterCommandBlocks(blocks, page, filtersPath) {
   working = dropSuToLfsSession(working);
   working = useFullCrossGccPath(working);
   working = fixGccPass1LimitsHeader(working, relPath);
+  working = working
+    .map((b) => cleanupLineContinuations(b).trim())
+    .filter(Boolean);
 
   const out = working.filter((b) => b.trim());
   return {
