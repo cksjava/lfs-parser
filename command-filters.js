@@ -79,14 +79,20 @@ function filterBlockLines(block, linePatterns) {
 function blockMatchesAny(block, patterns) {
   const trimmed = block.trim();
   return patterns.some((re) => {
+    const src = re.source;
     // Patterns with explicit newlines target multi-line blocks; keep multiline ^/$.
-    if (/\\n|\\r/.test(re.source)) {
+    if (/\\n|\\r/.test(src)) {
       return re.test(trimmed);
     }
-    // Otherwise match the whole block only — not a single line inside a larger block.
-    const flags = re.flags.replace(/m/g, "");
-    const full = new RegExp(`^(?:${re.source})$`, flags);
-    return full.test(trimmed);
+    // ^...$ patterns match one whole block only (avoids dropping make install when
+    // a later line is make install-html).
+    if (/^\^/.test(src) && /\$$/.test(src)) {
+      const flags = re.flags.replace(/m/g, "");
+      const full = new RegExp(`^(?:${src})$`, flags);
+      return full.test(trimmed);
+    }
+    // Other patterns may appear anywhere in a block (e.g. su tester … make check).
+    return re.test(trimmed);
   });
 }
 

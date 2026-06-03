@@ -3,6 +3,7 @@
   "bookReference": "13.0/chapter04/abouttestsuites.html",
   "dropLinePatterns": [
     "^make\\s+check\\s*$",
+    "^make\\s+(?:-[^\\s]+\\s+)*check\\s*$",
     "^make\\s+-k\\s+check\\s*$",
     "^make\\s+test\\b",
     "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root\\s*$",
@@ -36,6 +37,7 @@
     "set\\s+timeout\\s+-1\\s*\\n\\s*spawn\\s+make\\s+tests",
     "make\\s+check\\s+2>&1\\s+\\|\\s+tee\\s+gmp-check-log\\s*\\n\\s*awk",
     "^make\\s+check\\s*$",
+    "^make\\s+(?:-[^\\s]+\\s+)*check\\s*$",
     "^make\\s+-k\\s+check\\s*$",
     "^make\\s+test\\b",
     "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root",
