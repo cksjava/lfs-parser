@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -69,6 +70,7 @@ class BuildConfig:
     root_password: str = "lfs"
     lfs_user_password: str = "lfs"
     groff_paper_size: str = "A4"
+    grub_install_device: str = "/dev/sdb"
     jobs: str = ""
     confirm_each_script: bool = False
     dry_run: bool = False
@@ -103,6 +105,155 @@ def prompt_bool(text: str, default: bool = False) -> bool:
     return value in ("y", "yes", "true", "1")
 
 
+def grub_set_root_from_partition(partition: str) -> str:
+    """Map a Linux block device to GRUB (hdN,M) notation for set root=."""
+    m = re.fullmatch(r"/dev/sd([a-z])(\d+)", partition)
+    if m:
+        drive = ord(m.group(1)) - ord("a")
+        return f"(hd{drive},{m.group(2)})"
+    m = re.fullmatch(r"/dev/vd([a-z])(\d+)", partition)
+    if m:
+        drive = ord(m.group(1)) - ord("a")
+        return f"(hd{drive},{m.group(2)})"
+    m = re.fullmatch(r"/dev/nvme(\d+)n(\d+)p(\d+)", partition)
+    if m:
+        return f"(hd{m.group(1)},{m.group(3)})"
+    return "(hd1,2)"
+
+
+def network_match_pattern(iface: str) -> str:
+    """systemd-networkd [Match] Name= pattern from a host interface name."""
+    if re.match(r"^(en|eth)", iface):
+        return "Name=en* eth*"
+    if re.match(r"^(wl|wlan)", iface):
+        return "Name=wl* wlan*"
+    return f"Name={iface}*"
+
+
+def read_host_resolvers() -> tuple[list[str], str]:
+    """Return IPv4 nameservers and domain/search from the host resolv.conf."""
+    path = Path("/etc/resolv.conf")
+    if not path.exists():
+        return [], ""
+    servers: list[str] = []
+    domain = ""
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith(";"):
+            continue
+        if line.startswith("nameserver "):
+            addr = line.split()[1]
+            if ":" not in addr:
+                servers.append(addr)
+        elif line.startswith("domain "):
+            domain = line.split()[1]
+        elif line.startswith("search ") and not domain:
+            domain = line.split()[1]
+    return servers, domain
+
+
+def probe_host_clock() -> dict[str, str]:
+    """
+    Detect whether the build host hardware clock uses local time.
+    Mirrors /etc/adjtime LOCAL line when present; defaults to UTC.
+    """
+    uses_local = "0"
+    adjtime_path = Path("/etc/adjtime")
+    if adjtime_path.is_file():
+        if re.search(r"^LOCAL\s*$", adjtime_path.read_text(), re.MULTILINE):
+            uses_local = "1"
+    return {"uses_local": uses_local}
+
+
+def probe_host_network() -> dict[str, str]:
+    """
+    Inspect the build host's primary default-route interface.
+    Used to generate systemd-networkd config for the LFS system.
+    """
+    defaults: dict[str, str] = {
+        "mode": "dhcp",
+        "match": "Name=en* eth* wl*",
+        "address": "",
+        "gateway": "",
+        "dns": "8.8.8.8",
+        "dns2": "",
+        "domain": "",
+    }
+    try:
+        routes = subprocess.check_output(
+            ["ip", "-4", "route", "show", "default"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        routes = ""
+
+    if not routes:
+        dns_list, domain = read_host_resolvers()
+        if dns_list:
+            defaults["dns"] = dns_list[0]
+            if len(dns_list) > 1:
+                defaults["dns2"] = dns_list[1]
+        defaults["domain"] = domain
+        return defaults
+
+    best: tuple[int, str, str, str] | None = None
+    for line in routes.splitlines():
+        parts = line.split()
+        if "dev" not in parts or "via" not in parts:
+            continue
+        dev = parts[parts.index("dev") + 1]
+        gateway = parts[parts.index("via") + 1]
+        metric = 0
+        if "metric" in parts:
+            metric = int(parts[parts.index("metric") + 1])
+        proto = parts[parts.index("proto") + 1] if "proto" in parts else ""
+        if best is None or metric < best[0]:
+            best = (metric, dev, gateway, proto)
+
+    if best is None:
+        return defaults
+
+    _, iface, gateway, proto = best
+    match = network_match_pattern(iface)
+    dns_list, domain = read_host_resolvers()
+
+    try:
+        addr_out = subprocess.check_output(
+            ["ip", "-4", "-o", "addr", "show", "dev", iface],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        addr_out = ""
+
+    addr_match = re.search(r"\binet (\d+\.\d+\.\d+\.\d+/\d+)\b", addr_out)
+    address = addr_match.group(1) if addr_match else ""
+    is_dhcp = proto == "dhcp" or "dynamic" in addr_out
+
+    result = {
+        **defaults,
+        "match": match,
+        "gateway": gateway,
+        "domain": domain,
+        "dns": dns_list[0] if dns_list else defaults["dns"],
+        "dns2": dns_list[1] if len(dns_list) > 1 else "",
+    }
+
+    if is_dhcp:
+        result["mode"] = "dhcp"
+        result["match"] = "Name=en* eth* wl*"
+        return result
+
+    if address:
+        result["mode"] = "static"
+        result["address"] = address
+        return result
+
+    result["mode"] = "dhcp"
+    return result
+
+
 def collect_preferences() -> BuildConfig:
     print("\n=== Linux From Scratch Build Configuration ===\n")
     print("LFS must be built on a suitable Linux host (see LFS Chapter 2).")
@@ -112,6 +263,9 @@ def collect_preferences() -> BuildConfig:
     cfg = BuildConfig()
     cfg.lfs_mount = prompt("LFS mount point", cfg.lfs_mount)
     cfg.lfs_partition = prompt("LFS partition device", cfg.lfs_partition)
+    cfg.grub_install_device = prompt(
+        "GRUB install device (MBR/disk, e.g. /dev/sdb)", cfg.grub_install_device
+    )
     cfg.swap_partition = prompt("Swap partition (optional, leave empty to skip)", "")
     cfg.filesystem_type = prompt("Filesystem type for LFS partition", cfg.filesystem_type)
     cfg.hostname = prompt("Target hostname", cfg.hostname)
@@ -327,12 +481,24 @@ def host_env(cfg: BuildConfig) -> dict[str, str]:
     env["LFS_USER"] = cfg.lfs_user
     env["LFS_GROUP"] = cfg.lfs_group
     env["LFS_PARTITION"] = cfg.lfs_partition
+    env["LFS_GRUB_INSTALL_DEVICE"] = cfg.grub_install_device
+    env["LFS_GRUB_SET_ROOT"] = grub_set_root_from_partition(cfg.lfs_partition)
     env["LFS_SWAP_PARTITION"] = cfg.swap_partition
     env["LFS_FILESYSTEM_TYPE"] = cfg.filesystem_type
     env["LFS_ROOT_PASSWORD"] = cfg.root_password
     env["LFS_USER_PASSWORD"] = cfg.lfs_user_password
     env["LFS_GROFF_PAPER_SIZE"] = cfg.groff_paper_size
     env["LFS_HOSTNAME"] = cfg.hostname
+    net = probe_host_network()
+    env["LFS_NETWORK_MODE"] = net["mode"]
+    env["LFS_NETWORK_MATCH"] = net["match"]
+    env["LFS_NETWORK_ADDRESS"] = net["address"]
+    env["LFS_NETWORK_GATEWAY"] = net["gateway"]
+    env["LFS_NETWORK_DNS"] = net["dns"]
+    env["LFS_NETWORK_DNS2"] = net["dns2"]
+    env["LFS_NETWORK_DOMAIN"] = net["domain"]
+    clock = probe_host_clock()
+    env["LFS_HWCLOCK_LOCAL"] = clock["uses_local"]
     env["LFS_TIMEZONE"] = cfg.timezone
     env["LFS_LOCALE"] = cfg.locale
     env["LFS_KEYMAP"] = cfg.keymap

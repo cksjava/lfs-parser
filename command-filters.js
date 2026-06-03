@@ -266,7 +266,161 @@ function applyKernelHostConfigRule(blocks) {
     }
   }
 
-  return result;
+  return result.map((block) => {
+    if (/^mount\s+\/boot\s*$/im.test(block.trim())) {
+      return `# Mount /boot only when fstab defines a separate boot partition.
+if grep -q '[[:space:]]/boot[[:space:]]' /etc/fstab 2>/dev/null && ! mountpoint -q /boot 2>/dev/null; then
+  mount /boot
+fi`;
+    }
+    return block;
+  });
+}
+
+/** Parameterize GRUB install and grub.cfg; drop optional rescue-ISO steps. */
+function applyGrubBuildConfigRule(blocks) {
+  return blocks
+    .filter((block) => !/grub-mkrescue|xorriso\s+-as\s+cdrecord/.test(block))
+    .map((block) => {
+      let b = block;
+      b = b.replace(
+        /grub-install\s+\/dev\/\S+/,
+        'grub-install "${LFS_GRUB_INSTALL_DEVICE:-/dev/sdb}"'
+      );
+      b = b.replace(/set root=\(hd\d+,\d+\)/, "set root=${LFS_GRUB_SET_ROOT:-(hd1,2)}");
+      b = b.replace(
+        /root=\/dev\/\S+(\s+ro)/,
+        "root=${LFS_PARTITION:-/dev/sdb2}$1"
+      );
+      if (/\/boot\/grub\/grub\.cfg/.test(b)) {
+        b = b.replace(/<<\s*"EOF"/, "<< EOF");
+      }
+      return b;
+    });
+}
+
+/** Replace book network templates with host-probed systemd-networkd config. */
+function applyNetworkConfigRule() {
+  return [
+    `# Automated: systemd-networkd from build host probe (build_lfs.py probe_host_network).
+# systemd-resolved manages /etc/resolv.conf on boot — no static resolv.conf here.
+mkdir -p /etc/systemd/network
+
+if [[ "\${LFS_NETWORK_MODE:-dhcp}" == static && -n "\${LFS_NETWORK_ADDRESS:-}" ]]; then
+  cat > /etc/systemd/network/80-lfs.network << EOF
+[Match]
+\${LFS_NETWORK_MATCH:-Name=en* eth*}
+
+[Network]
+Address=\${LFS_NETWORK_ADDRESS}
+Gateway=\${LFS_NETWORK_GATEWAY}
+DNS=\${LFS_NETWORK_DNS:-8.8.8.8}
+\${LFS_NETWORK_DNS2:+DNS=\${LFS_NETWORK_DNS2}}
+\${LFS_NETWORK_DOMAIN:+Domains=\${LFS_NETWORK_DOMAIN}}
+EOF
+else
+  cat > /etc/systemd/network/80-lfs.network << EOF
+[Match]
+\${LFS_NETWORK_MATCH:-Name=en* eth* wl*}
+
+[Network]
+DHCP=ipv4
+
+[DHCPv4]
+UseDomains=true
+EOF
+fi
+
+echo "\${LFS_HOSTNAME:-lfs}" > /etc/hostname
+
+cat > /etc/hosts << EOF
+# Begin /etc/hosts
+127.0.0.1 localhost
+127.0.1.1 \${LFS_HOSTNAME:-lfs}.localdomain \${LFS_HOSTNAME:-lfs}
+::1       ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+# End /etc/hosts
+EOF`,
+  ];
+}
+
+/** §9.4 udev symlink examples are device-specific; skip in automated builds. */
+function applySymlinksConfigRule() {
+  return [
+    "# §9.4 device-specific udev symlinks skipped (add /etc/udev/rules.d/*.rules manually if needed).",
+  ];
+}
+
+/** §9.5 clock/timezone without timedatectl (does not work in chroot). */
+function applyClockConfigRule() {
+  return [
+    `# Automated: clock/timezone from build_lfs.py (timedatectl does not work in chroot).
+cat > /etc/adjtime << 'EOF'
+0.0 0 0.0
+0
+EOF
+if [[ "\${LFS_HWCLOCK_LOCAL:-0}" == 1 ]]; then
+  echo LOCAL >> /etc/adjtime
+fi
+ln -sfv /usr/share/zoneinfo/\${LFS_TIMEZONE:-UTC} /etc/localtime`,
+  ];
+}
+
+/** §9.6 console keymap and font from build prompts. */
+function applyConsoleConfigRule() {
+  return [
+    `# Automated: console keymap/font from build_lfs.py prompts.
+cat > /etc/vconsole.conf << EOF
+KEYMAP=\${LFS_KEYMAP:-us}
+FONT=\${LFS_CONSOLE_FONT:-LatArC-16}
+EOF`,
+  ];
+}
+
+/** §9.7 locale.conf and /etc/profile; skip book diagnostics and localectl. */
+function applyLocaleConfigRule() {
+  return [
+    `cat > /etc/locale.conf << EOF
+LANG=\${LFS_LOCALE:-en_US.UTF-8}
+EOF`,
+    `cat > /etc/profile << 'EOF'
+# Begin /etc/profile
+
+for i in $(locale); do
+  unset \${i%=*}
+done
+
+if [[ "$TERM" = linux ]]; then
+  export LANG=C.UTF-8
+else
+  source /etc/locale.conf
+
+  for i in $(locale); do
+    key=\${i%=*}
+    if [[ -v $key ]]; then
+      export $key
+    fi
+  done
+fi
+
+# End /etc/profile
+EOF`,
+  ];
+}
+
+/** §9.10 useful systemd tweaks only (no book examples or risky tmp.mount disable). */
+function applySystemdCustomConfigRule() {
+  return [
+    `mkdir -pv /etc/systemd/system/getty@tty1.service.d
+
+cat > /etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
+[Service]
+TTYVTDisallocate=no
+EOF`,
+    `mkdir -p /etc/tmpfiles.d
+cp /usr/lib/tmpfiles.d/tmp.conf /etc/tmpfiles.d`,
+  ];
 }
 
 function applyPageRules(blocks, relPath, rules) {
@@ -296,6 +450,34 @@ function applyPageRules(blocks, relPath, rules) {
 
   if (pageRule.useHostKernelConfig) {
     out = applyKernelHostConfigRule(out);
+  }
+
+  if (pageRule.useGrubBuildConfig) {
+    out = applyGrubBuildConfigRule(out);
+  }
+
+  if (pageRule.useHostNetworkConfig) {
+    out = applyNetworkConfigRule();
+  }
+
+  if (pageRule.useHostSymlinksConfig) {
+    out = applySymlinksConfigRule();
+  }
+
+  if (pageRule.useHostClockConfig) {
+    out = applyClockConfigRule();
+  }
+
+  if (pageRule.useHostConsoleConfig) {
+    out = applyConsoleConfigRule();
+  }
+
+  if (pageRule.useHostLocaleConfig) {
+    out = applyLocaleConfigRule();
+  }
+
+  if (pageRule.useHostSystemdCustomConfig) {
+    out = applySystemdCustomConfigRule();
   }
 
   return out;

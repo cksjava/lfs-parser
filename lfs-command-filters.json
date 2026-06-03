@@ -130,6 +130,35 @@
       "comment": "Use host-derived kernel config (localyesconfig) instead of interactive menuconfig",
       "useHostKernelConfig": true,
       "dropBlocksMatching": ["^make\\s+menuconfig\\s*$"]
+    },
+    "chapter10/grub.html": {
+      "comment": "Skip rescue ISO; parameterize grub-install and grub.cfg from build_lfs.py",
+      "useGrubBuildConfig": true,
+      "dropBlocksMatching": ["grub-mkrescue", "xorriso\\s+-as\\s+cdrecord"]
+    },
+    "chapter09/network.html": {
+      "comment": "Replace book placeholders with host-probed systemd-networkd config",
+      "useHostNetworkConfig": true
+    },
+    "chapter09/symlinks.html": {
+      "comment": "Skip book udev symlink examples (host-specific devices)",
+      "useHostSymlinksConfig": true
+    },
+    "chapter09/clock.html": {
+      "comment": "Write adjtime + localtime symlink; skip timedatectl (broken in chroot)",
+      "useHostClockConfig": true
+    },
+    "chapter09/console.html": {
+      "comment": "vconsole.conf from LFS_KEYMAP / LFS_CONSOLE_FONT build prompts",
+      "useHostConsoleConfig": true
+    },
+    "chapter09/locale.html": {
+      "comment": "locale.conf + /etc/profile from prompts; skip diagnostics and localectl",
+      "useHostLocaleConfig": true
+    },
+    "chapter09/systemd-custom.html": {
+      "comment": "Keep getty noclear + tmpfiles.d copy; drop examples and tmp.mount disable",
+      "useHostSystemdCustomConfig": true
     }
   },
   "documentation": {
