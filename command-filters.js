@@ -141,7 +141,7 @@ function sanitizeLineForDocumentation(line, docRules) {
 }
 
 function blockLooksDocumentationRelated(block) {
-  return /\/usr\/share\/(?:doc|info)\b|makeinfo\b|install-info\b|install-html|\.info\.gz|-html\.tar|install_docs-1\.patch/i.test(
+  return /\/usr\/share\/(?:doc|info)\b|makeinfo\b|install-info\b|install-html|\bmake html\b|\.info\.gz|-html\.tar|install_docs-1\.patch/i.test(
     block
   );
 }

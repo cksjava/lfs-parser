@@ -296,9 +296,14 @@ function extractCommands(html) {
   const $ = cheerio.load(html, { xml: false });
   const blocks = [];
   $("pre.userinput").each((_, pre) => {
+    const $pre = $(pre);
+    // Notes often show illustrative placeholders (e.g. "ABI=32 ./configure ...").
+    if ($pre.closest("div.admon.note, div.note").length) {
+      return;
+    }
     // Use full <pre> text: nested <kbd class="command"> (e.g. chown --from lfs)
     // breaks when only the outer kbd node is read (words run together after esac).
-    const text = $(pre).text().replace(/\r\n/g, "\n").trim();
+    const text = $pre.text().replace(/\r\n/g, "\n").trim();
     if (text) blocks.push(text);
   });
   return blocks;

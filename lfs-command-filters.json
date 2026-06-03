@@ -22,7 +22,8 @@
     "^exec\\s+/usr/bin/bash\\s+--login\\s*$",
     "^tzselect\\s*$",
     "^localedef\\s+",
-    "^TIMEOUTFACTOR=.*make\\s+test\\s+"
+    "^TIMEOUTFACTOR=.*make\\s+test\\s+",
+    "^make html\\s*$"
   ],
   "dropBlockPatterns": [
     "su\\s+tester\\s+-c\\s+.*make\\s+(-k\\s+)?check",
@@ -37,7 +38,10 @@
     "^make\\s+check\\s*$",
     "^make\\s+-k\\s+check\\s*$",
     "^make\\s+test\\b",
-    "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root"
+    "^make\\s+NON_ROOT_USERNAME=tester\\s+check-root",
+    "^\\./configure \\.\\.\\.\\s*$",
+    "^ABI=32 ./configure \\.\\.\\.\\s*$",
+    "\\./configure \\.\\.\\."
   ],
   "pageRules": {
     "chapter08/glibc.html": {
@@ -91,6 +95,10 @@
         "su\\s+tester\\s+-c.*make\\s+-k",
         "groupdel\\s+dummy"
       ]
+    },
+    "chapter08/gmp.html": {
+      "comment": "Drop Note admonition placeholder 'ABI=32 ./configure ...'",
+      "dropBlocksMatching": ["^ABI=32 ./configure \\.\\.\\."]
     }
   },
   "documentation": {
@@ -100,6 +108,16 @@
         "id": "make-install-html",
         "summary": "make install-html (GMP, MPFR, MPC)",
         "bookPages": ["chapter08/gmp.html", "chapter08/mpfr.html", "chapter08/mpc.html"]
+      },
+      {
+        "id": "make-html",
+        "summary": "make html (optional HTML docs; GMP, MPFR, MPC, sed)",
+        "bookPages": [
+          "chapter08/gmp.html",
+          "chapter08/mpfr.html",
+          "chapter08/mpc.html",
+          "chapter08/sed.html"
+        ]
       },
       {
         "id": "make-doc-install-html",
@@ -182,6 +200,7 @@
     ],
     "dropLinePatterns": [
       "^make\\s+install-html\\s*$",
+      "^make html\\s*$",
       "^make\\s+-C\\s+doc\\s+install-html\\b",
       "^makeinfo\\b",
       "^install-info\\b",
@@ -210,6 +229,8 @@
     ],
     "dropBlockPatterns": [
       "^make\\s+install-html\\s*$",
+      "^make html\\s*$",
+      "^make\\s*\\nmake html\\s*$",
       "^make\\s+-C\\s+doc\\s+install-html",
       "makeinfo\\s+--",
       "pushd\\s+/usr/share/info",
