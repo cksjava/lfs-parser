@@ -28,6 +28,8 @@ RUNNERS_DIR_NAME = "runners"
 COMPLETED_SCRIPTS_NAME = Path("logs") / "completed-scripts"
 EVENTS_LOG_NAME = Path("logs") / "build-events.jsonl"
 KERNFS_SCRIPT_REL = "stage-04-chroot/0026-07-kernfs.sh"
+BOOTSTRAP_SCRIPT = ROOT / "bootstrap-lfs.sh"
+STAGE_HOST_PREP = "stage-01-host-prep"
 
 
 @dataclass
@@ -41,13 +43,13 @@ class BuildConfig:
     locale: str = "en_US.UTF-8"
     keymap: str = "us"
     console_font: str = "LatArC-16"
-    run_package_tests: bool = False
-    download_packages: bool = False
     sources_dir: str = ""
     book_dir: str = ""
     scripts_dir: str = ""
     lfs_user: str = "lfs"
     lfs_group: str = "lfs"
+    root_password: str = "lfs"
+    lfs_user_password: str = "lfs"
     jobs: str = ""
     confirm_each_script: bool = False
     dry_run: bool = False
@@ -85,8 +87,8 @@ def prompt_bool(text: str, default: bool = False) -> bool:
 def collect_preferences() -> BuildConfig:
     print("\n=== Linux From Scratch Build Configuration ===\n")
     print("LFS must be built on a suitable Linux host (see LFS Chapter 2).")
-    print("Run ./lfs prepare and ./lfs download before ./lfs build.")
-    print("This orchestrator must be run as root.\n")
+    print("This orchestrator runs host bootstrap (Ch 2–4) then package scripts.")
+    print("Must be run as root.\n")
 
     cfg = BuildConfig()
     cfg.lfs_mount = prompt("LFS mount point", cfg.lfs_mount)
@@ -100,18 +102,9 @@ def collect_preferences() -> BuildConfig:
     cfg.console_font = prompt("Console font", cfg.console_font)
     cfg.lfs_user = prompt("LFS build user", cfg.lfs_user)
     cfg.lfs_group = prompt("LFS build group", cfg.lfs_group)
+    cfg.root_password = prompt("Root password", cfg.root_password)
+    cfg.lfs_user_password = prompt("LFS user password", cfg.lfs_user_password)
     cfg.jobs = prompt("Make parallel jobs (empty = nproc)", cfg.jobs)
-    cfg.run_package_tests = prompt_bool("Run package test suites when present?", False)
-    cfg.download_packages = prompt_bool(
-        "Download packages via wget-list now? (normally use ./lfs download first)",
-        False,
-    )
-    cfg.sources_dir = prompt(
-        "Sources on LFS disk (empty = $LFS/sources; host staging is ~/sources)",
-        "",
-    )
-    cfg.confirm_each_script = prompt_bool("Confirm before each script?", False)
-    cfg.dry_run = prompt_bool("Dry run (print commands only)?", False)
 
     return cfg
 
@@ -227,12 +220,17 @@ def host_env(cfg: BuildConfig) -> dict[str, str]:
     env["LFS_SCRIPTS_DIR"] = str(cfg.resolved_scripts())
     env["LFS_BOOK_DIR"] = str(cfg.resolved_book())
     env["LFS_USER"] = cfg.lfs_user
+    env["LFS_GROUP"] = cfg.lfs_group
+    env["LFS_PARTITION"] = cfg.lfs_partition
+    env["LFS_SWAP_PARTITION"] = cfg.swap_partition
+    env["LFS_FILESYSTEM_TYPE"] = cfg.filesystem_type
+    env["LFS_ROOT_PASSWORD"] = cfg.root_password
+    env["LFS_USER_PASSWORD"] = cfg.lfs_user_password
     env["LFS_HOSTNAME"] = cfg.hostname
     env["LFS_TIMEZONE"] = cfg.timezone
     env["LFS_LOCALE"] = cfg.locale
     env["LFS_KEYMAP"] = cfg.keymap
     env["LFS_CONSOLE_FONT"] = cfg.console_font
-    env["LFS_RUN_TESTS"] = "1" if cfg.run_package_tests else "0"
     env["MAKEFLAGS"] = f"-j{jobs}"
     env["TESTSUITEFLAGS"] = f"-j{jobs}"
     return env
@@ -325,27 +323,6 @@ def phase_label(phase: dict[str, Any]) -> str:
     if t == "chroot":
         return "chroot session"
     return "checkpoint"
-
-
-def download_sources(cfg: BuildConfig, env: dict[str, str]) -> None:
-    sources = cfg.resolved_sources()
-    book = cfg.resolved_book()
-    wget_list = book / "wget-list-systemd"
-    if not wget_list.exists():
-        wget_list = book / "wget-list"
-    if not wget_list.exists():
-        print("No wget-list found in book; skip package download.")
-        return
-
-    sources.mkdir(parents=True, exist_ok=True)
-    print(f"\nDownloading packages into {sources} ...")
-    code = run_cmd(
-        f"cd {sources} && wget --input-file={wget_list} --continue --timestamping",
-        env=env,
-        dry_run=cfg.dry_run,
-    )
-    if code != 0:
-        raise RuntimeError("Package download failed")
 
 
 def run_root_script(
@@ -482,6 +459,125 @@ def mark_completed(
     state["completed"] = sorted(completed)
 
 
+def is_lfs_mounted(mount: str) -> bool:
+    return os.path.ismount(mount)
+
+
+def has_build_progress(state: dict[str, Any], scripts_root: Path) -> bool:
+    if state.get("bootstrapComplete"):
+        return True
+    if state.get("completed"):
+        return True
+    comp_file = scripts_root / COMPLETED_SCRIPTS_NAME
+    return comp_file.exists() and bool(comp_file.read_text().strip())
+
+
+def reset_build_logs(scripts_root: Path) -> None:
+    for log_file in (
+        scripts_root / COMPLETED_SCRIPTS_NAME,
+        scripts_root / EVENTS_LOG_NAME,
+    ):
+        if log_file.exists():
+            log_file.unlink()
+
+
+def unmount_lfs(cfg: BuildConfig) -> None:
+    mount = cfg.lfs_mount
+    if is_lfs_mounted(mount):
+        print(f"Unmounting {mount} ...")
+        subprocess.run(["umount", mount], check=False)
+    if cfg.swap_partition:
+        subprocess.run(["swapoff", cfg.swap_partition], check=False)
+
+
+def run_bootstrap(
+    cfg: BuildConfig,
+    env: dict[str, str],
+    *,
+    mkfs: bool,
+    dry_run: bool = False,
+) -> int:
+    if not cfg.lfs_partition:
+        print("LFS partition device is required for bootstrap.", file=sys.stderr)
+        return 1
+    if not BOOTSTRAP_SCRIPT.exists():
+        print(f"Missing bootstrap script: {BOOTSTRAP_SCRIPT}", file=sys.stderr)
+        return 1
+    bootstrap_env = {
+        **env,
+        "LFS_BOOTSTRAP_MKFS": "1" if mkfs else "0",
+    }
+    print("\n=== LFS host bootstrap (Chapters 2–4) ===")
+    return run_cmd(
+        ["bash", str(BOOTSTRAP_SCRIPT)],
+        env=bootstrap_env,
+        cwd=ROOT,
+        dry_run=dry_run,
+    )
+
+
+def scripts_for_build(manifest_scripts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop stage-01 book scripts; bootstrap replaces Ch 2–4 host prep."""
+    return [
+        s
+        for s in manifest_scripts
+        if s.get("stage") != STAGE_HOST_PREP
+    ]
+
+
+def executable_phases(phases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [p for p in phases if p["type"] != "marker"]
+
+
+def resolve_startup(
+    scripts_root: Path,
+) -> tuple[BuildConfig, dict[str, Any], bool, bool]:
+    """
+    Returns (cfg, state, resume_build, skip_bootstrap).
+    skip_bootstrap True when resuming with $LFS already mounted.
+    """
+    prev_cfg = load_config()
+    prev_state = load_state()
+    mount_hint = prev_cfg.lfs_mount if prev_cfg else "/mnt/lfs"
+    mounted = is_lfs_mounted(mount_hint)
+    in_progress = mounted or has_build_progress(prev_state, scripts_root)
+
+    resume = False
+    if in_progress:
+        if mounted:
+            print(f"\nLFS partition is mounted at {mount_hint}.")
+        else:
+            print("\nSaved build progress was found.")
+        resume = prompt_bool("Resume from saved state?", False)
+
+    if resume:
+        cfg = prev_cfg
+        if not cfg:
+            print("No saved config; enter build settings.")
+            cfg = collect_preferences()
+            save_config(cfg)
+        state = prev_state
+        skip_bootstrap = mounted
+        return cfg, state, True, skip_bootstrap
+
+    if in_progress and mounted:
+        unmount_cfg = prev_cfg or BuildConfig(lfs_mount=mount_hint)
+        unmount_lfs(unmount_cfg)
+
+    if STATE_FILE.exists() and prompt_bool("Reset previous build state?", True):
+        if prev_cfg and is_lfs_mounted(prev_cfg.lfs_mount):
+            unmount_lfs(prev_cfg)
+        STATE_FILE.unlink()
+        log_root = prev_cfg.resolved_scripts() if prev_cfg else scripts_root
+        reset_build_logs(log_root)
+
+    cfg = collect_preferences()
+    save_config(cfg)
+    if is_lfs_mounted(cfg.lfs_mount):
+        unmount_lfs(cfg)
+    return cfg, {"completed": [], "lastError": None, "startedAt": None, "finishedAt": None}, False, False
+
+
 def main() -> int:
     require_linux()
     require_root()
@@ -495,72 +591,49 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text())
     scripts_root = manifest_path.parent
 
-    resume = prompt_bool("\nResume from saved state?", False)
-    if resume:
-        cfg = load_config()
-        if not cfg:
-            print("No saved config; starting fresh.")
-            cfg = collect_preferences()
-            save_config(cfg)
-    else:
-        if STATE_FILE.exists() and prompt_bool("Reset previous build state?", True):
-            STATE_FILE.unlink()
-            prev_cfg = load_config()
-            log_root = prev_cfg.resolved_scripts() if prev_cfg else scripts_root
-            for log_file in (
-                log_root / COMPLETED_SCRIPTS_NAME,
-                log_root / EVENTS_LOG_NAME,
-            ):
-                if log_file.exists():
-                    log_file.unlink()
-        cfg = collect_preferences()
-        save_config(cfg)
+    cfg, state, resume_build, skip_bootstrap = resolve_startup(scripts_root)
 
     env = host_env(cfg)
-    state = load_state()
     if not state.get("startedAt"):
         state["startedAt"] = datetime.now(timezone.utc).isoformat()
         save_state(state)
 
-    completed = load_completed_set(state, scripts_root)
-    scripts = manifest.get("scripts", [])
-    phases = group_phases(scripts)
+    if not skip_bootstrap:
+        mkfs = not resume_build
+        code = run_bootstrap(cfg, env, mkfs=mkfs, dry_run=cfg.dry_run)
+        if code != 0:
+            print("\nBootstrap failed.", file=sys.stderr)
+            return code
+        if not cfg.dry_run:
+            state["bootstrapComplete"] = True
+            state["sourcesSyncedToLfs"] = True
+            save_state(state)
 
-    if cfg.download_packages and "packages-downloaded" not in completed:
-        try:
-            download_sources(cfg, env)
-            if not cfg.dry_run:
-                completed.add("packages-downloaded")
-                state["completed"] = sorted(completed)
-                save_state(state)
-        except RuntimeError as exc:
-            print(exc, file=sys.stderr)
-            return 1
+    completed = load_completed_set(state, scripts_root)
+    build_scripts = scripts_for_build(manifest.get("scripts", []))
+    phases = executable_phases(group_phases(build_scripts))
 
     print(f"\n=== LFS build: {len(phases)} phase(s) from manifest ===\n")
 
     for phase in phases:
         ptype = phase["type"]
-        if ptype == "marker":
-            for m in phase.get("markers", []):
-                print(f"\n--- Checkpoint: {m.get('title', m.get('source'))} ---")
-            continue
 
         pending = [e for e in phase["scripts"] if e["script"] not in completed]
         if not pending:
             continue
 
         if phase_requires_mount(phase) and not cfg.dry_run:
-            if not os.path.ismount(cfg.lfs_mount):
+            if not is_lfs_mounted(cfg.lfs_mount):
                 print(
                     f"\nLFS partition must be mounted at {cfg.lfs_mount} "
                     f"before phase: {phase_label(phase)}"
                 )
-                print("Mount it, then re-run to resume.")
+                print("Re-run to resume; bootstrap will mount the partition.")
                 return 1
-            code = ensure_sources_synced_to_lfs(cfg, state, env)
-            if code != 0:
-                return code
+            if not state.get("sourcesSyncedToLfs"):
+                code = ensure_sources_synced_to_lfs(cfg, state, env)
+                if code != 0:
+                    return code
 
         print(f"\n######## Phase: {phase_label(phase)} ########")
 

@@ -225,8 +225,41 @@ function applyPageRules(blocks, relPath, rules) {
   return out;
 }
 
+function replaceInteractivePasswd(blocks) {
+  return blocks.map((block) =>
+    block
+      .split("\n")
+      .map((line) => {
+        const t = line.trim();
+        if (/^passwd\s+root\s*$/.test(t)) {
+          return 'echo "root:${LFS_ROOT_PASSWORD:-lfs}" | chpasswd';
+        }
+        if (/^passwd\s+lfs\s*$/.test(t)) {
+          return 'echo "${LFS_USER:-lfs}:${LFS_USER_PASSWORD:-lfs}" | chpasswd';
+        }
+        return line;
+      })
+      .join("\n")
+  );
+}
+
+function dropSuToLfsSession(blocks) {
+  return blocks
+    .map((block) =>
+      block
+        .split("\n")
+        .filter((line) => {
+          const t = line.trim();
+          if (/^su\s+-\s+lfs\s*$/.test(t)) return false;
+          if (/^su\s+-\s+\$\{?LFS_USER\}?\s*$/.test(t)) return false;
+          return true;
+        })
+        .join("\n")
+    )
+    .filter((b) => b.trim());
+}
+
 /**
- * @param {string[]} blocks - command blocks from one HTML page
  * @param {{ relPath: string }} page
  * @param {string} [filtersPath]
  * @returns {{ blocks: string[], removed: number }}
@@ -253,6 +286,8 @@ export function filterCommandBlocks(blocks, page, filtersPath) {
 
   working = applyDocumentationFilters(working, rules);
   working = applyPageRules(working, relPath, rules);
+  working = replaceInteractivePasswd(working);
+  working = dropSuToLfsSession(working);
 
   const out = working.filter((b) => b.trim());
   return {

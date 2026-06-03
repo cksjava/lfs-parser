@@ -18,30 +18,30 @@ Parses the [Linux From Scratch](https://www.linuxfromscratch.org/) book (13.0-sy
 | `script-skip-rules.js` | Skip-rule engine used by the extractor |
 | `package-tarball-exceptions.json` | Manual tarball overrides when headings ≠ wget-list names |
 | `lfs-scripts/` | Generated scripts + `manifest.json` + `runners/` (after `npm run extract`) |
+| `bootstrap-lfs.sh` | Ch 2–4 host bootstrap (version check, download, mkfs, mount, sources, layout, `lfs` user) |
 | `build_lfs.py` | Interactive build orchestrator |
 
 ## Quick start
 
 ```bash
-# Already done in this repo: book downloaded and extracted to 13.0/
+# Book HTML in 13.0/ (download separately; see linuxfromscratch.org)
 
-npm install
+npm install --ignore-scripts   # skip prepare hook if not root yet
 npm run extract
-chmod +x lfs prepare-host.sh download-sources.sh version-check.sh
+chmod +x lfs bootstrap-lfs.sh prepare-host.sh download-sources.sh version-check.sh
 
-# On Debian/Ubuntu (LFS Chapter 2 host requirements):
-sudo ./lfs prepare    # apt packages, /bin/sh -> bash, version-check.sh
-./lfs download        # lfs-packages-13.0.tar -> ~/sources (no LFS mount required)
-sudo ./lfs build      # build orchestrator (root); syncs ~/sources -> \$LFS/sources when mounted
+sudo ./lfs build   # prompts for partition/mount/etc., runs bootstrap, then package scripts
 ```
 
-### Three-step workflow
+`./lfs prepare` and `./lfs download` remain available as optional shortcuts (bootstrap calls the same underlying scripts during `./lfs build`).
+
+### Commands
 
 | Command | Script | Purpose |
 |---------|--------|---------|
-| `./lfs prepare` | `prepare-host.sh` | Debian/Ubuntu build deps, book symlinks (`/bin/sh` → bash, `awk` → gawk, `yacc` → bison), install **axel**, run **`version-check.sh`** |
-| `./lfs download` | `download-sources.sh` | Download **`lfs-packages-13.0.tar`**, extract and verify in **`~/sources`** (`LFS_HOST_SOURCES`); copy to **`$LFS/sources`** only when `$LFS` is mounted (or `./lfs download --sync-only`) |
-| `./lfs build` | `build_lfs.py` | Run generated package scripts in manifest order |
+| `./lfs build` | `build_lfs.py` | **Primary workflow:** config prompts, `bootstrap-lfs.sh` (Ch 2–4), then generated package scripts |
+| `./lfs prepare` | `prepare-host.sh` | Optional: Debian/Ubuntu deps, symlinks, `version-check.sh` (also run by bootstrap on failure) |
+| `./lfs download` | `download-sources.sh` | Optional: `lfs-packages-13.0.tar` → `~/sources` (also run by bootstrap) |
 
 `version-check.sh` is the script from LFS 13.0-systemd §2.2; `prepare` runs it automatically and fails if the host is unsuitable.
 
@@ -51,7 +51,7 @@ Package tarball (stable book, single archive): **`lfs-packages-13.0.tar`** — s
 
 Scripts are grouped to match the book’s build stages (Chapter 2.3):
 
-1. **stage-01-host-prep** — Chapters 2–4 (host, partition, `lfs` user, environment)
+1. **stage-01-host-prep** — Chapters 2–4 (handled by **`bootstrap-lfs.sh`**, not manifest scripts)
 2. **stage-02-cross-toolchain** — Chapter 5 (`lfs` user, `$LFS/sources`)
 3. **stage-03-temp-tools** — Chapter 6
 4. **stage-04-chroot** — Chapter 7 (root until chroot, then chroot)
@@ -65,12 +65,26 @@ Scripts are grouped to match the book’s build stages (Chapter 2.3):
 
 `build_lfs.py` prompts for mount point, partition, hostname, timezone, locale, and related options. It saves `lfs-build-config.json` and `lfs-build-state.json` for resume.
 
+### Bootstrap (Chapters 2–4)
+
+Before package scripts, **`bootstrap-lfs.sh`** runs (unless resuming with `$LFS` already mounted):
+
+1. `version-check.sh` (runs `prepare-host.sh` if the check fails)
+2. `download-sources.sh --no-sync` → `~/sources`
+3. `mkfs` on the configured partition (fresh build only; skipped on resume)
+4. Mount `$LFS`, optional swap
+5. Create `$LFS/sources`, sync from `~/sources`
+6. Directory layout (book §4.2), `lfs` user + password (§4.3)
+7. Move host `/etc/bash.bashrc` aside (§4.4 Important note)
+
+If `$LFS` is mounted when you start, you are asked whether to **resume** (skip bootstrap) or **start over** (unmount, reformat, full bootstrap).
+
 ### Execution model
 
 | Context | How it runs |
 |--------|-------------|
-| **Host root** | Python spawns `bash` for each script (Ch 2–4 host prep, Ch 7 ownership/kernfs, optional backup, Ch 11) |
-| **LFS user** | One `run-lfs-session.sh` does `su - lfs` and runs `iterate-lfs.sh`, which **sources** each package script in order (Ch 4.4 + 5 + 6) in a single login shell |
+| **Host root** | Python spawns `bash` for each script (Ch 7 ownership/kernfs, optional backup, Ch 11) |
+| **LFS user** | One `run-lfs-session.sh` does `su - lfs` (after bootstrap), sources `lfs-user-env.sh` (book §4.4), and runs stage-02+ scripts in one login shell |
 | **Chroot** | One `run-chroot-session.sh` enters chroot with the book’s clean env and runs `iterate-chroot.sh`, which sources each in-chroot script (Ch 7 after entry, then Ch 8–10 after re-entry) |
 
 Chapter 7.4 (interactive `chroot … bash --login`) is not a package script; `run-chroot-session.sh` replaces it. Section 7.13 is split into in-chroot cleaning and host-side backup scripts.
@@ -85,14 +99,16 @@ The extractor **never emits** a script when a page matches:
 2. **`skipPagePatterns`** — regex on the HTML path (e.g. any `chapter07/chroot.html`).
 3. **`contentRules`** — heuristics on filtered command blocks (placeholders `/dev/<xxx>`, `version-check.sh`, bulk `wget-list`, chroot login, host `umount`, pkgmgt tutorials, lfs `.bashrc`, etc.).
 
-Skipped pages are still listed in `manifest.json` with `runAs: "skip"`, plus `skipHandler`, `skipReason`, and `skipMatchedRule`. Re-run `npm run extract` after editing the JSON.
+Skipped pages remain in `manifest.json` with `runAs: "skip"` for traceability; the build driver does not print or run them. Re-run `npm run extract` after editing the JSON.
 
 | Page | Handler |
 |------|---------|
 | Ch 2.2 hostreqs | `tool-prepare` |
-| Ch 2.5–2.7 mkfs/mount | `manual-disk` (also matched by placeholder heuristic) |
+| Ch 2.5–2.7 mkfs/mount | `manual-disk` / `orchestrator-bootstrap` |
 | Ch 2.6 `$LFS` / umask | `orchestrator-env` |
-| Ch 3.1 introduction | `tool-download` |
+| Ch 3.1 introduction | `tool-download` / bootstrap |
+| Ch 4.2 layout | `orchestrator-bootstrap` |
+| Ch 4.3 adding user | `orchestrator-bootstrap` |
 | Ch 4.4 settingenvironment | `session-lfs-environment` |
 | Ch 7.4 chroot | `session-chroot-entry` |
 | Ch 8.2 pkgmgt | `documentation-only` |

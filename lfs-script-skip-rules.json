@@ -6,6 +6,7 @@
     "tool-prepare": "./lfs prepare and repo version-check.sh (book §2.2)",
     "tool-download": "./lfs download (lfs-packages tarball + md5sums)",
     "orchestrator-env": "build_lfs.py exports LFS, MAKEFLAGS, and related host env",
+    "orchestrator-bootstrap": "bootstrap-lfs.sh performs Ch 2–4 host prep before package scripts",
     "manual-disk": "Partition, mkfs, mount, and fstab need real device names from the operator",
     "manual-reboot": "Interactive host logout, umount, and reboot after the build",
     "documentation-only": "Conceptual or example commands, not part of the automated build",
@@ -46,6 +47,16 @@
       "source": "chapter04/settingenvironment.html",
       "handler": "session-lfs-environment",
       "reason": "lfs user .bashrc is applied via runners/lfs-user-env.sh"
+    },
+    {
+      "source": "chapter04/creatingminlayout.html",
+      "handler": "orchestrator-bootstrap",
+      "reason": "Directory layout is created by bootstrap-lfs.sh (book §4.2)"
+    },
+    {
+      "source": "chapter04/addinguser.html",
+      "handler": "orchestrator-bootstrap",
+      "reason": "LFS user creation is handled by bootstrap-lfs.sh (book §4.3)"
     },
     {
       "source": "chapter08/pkgmgt.html",
