@@ -153,7 +153,7 @@
       "useHostClockConfig": true
     },
     "chapter09/console.html": {
-      "comment": "vconsole.conf from LFS_KEYMAP / LFS_CONSOLE_FONT build prompts",
+      "comment": "vconsole.conf from build prompts; default Lat2-Terminus16 (LFS §9.6); validate font exists in /usr/share/consolefonts",
       "useHostConsoleConfig": true
     },
     "chapter09/locale.html": {

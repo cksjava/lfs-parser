@@ -58,6 +58,6 @@ chroot "$LFS" /usr/bin/env -i \
     LFS_TIMEZONE="${LFS_TIMEZONE:-UTC}" \
     LFS_LOCALE="${LFS_LOCALE:-en_US.UTF-8}" \
     LFS_KEYMAP="${LFS_KEYMAP:-us}" \
-    LFS_CONSOLE_FONT="${LFS_CONSOLE_FONT:-LatArC-16}" \
+    LFS_CONSOLE_FONT="${LFS_CONSOLE_FONT:-Lat2-Terminus16}" \
     LFS_HWCLOCK_LOCAL="${LFS_HWCLOCK_LOCAL:-0}" \
     /bin/bash --login "$ITERATOR" "$CHROOT_SESSION"

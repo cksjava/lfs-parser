@@ -431,14 +431,25 @@ ln -sfv /usr/share/zoneinfo/\${LFS_TIMEZONE:-UTC} /etc/localtime`,
   ];
 }
 
-/** §9.6 console keymap and font from build prompts. */
+/** §9.6 console keymap and font from build prompts (LFS book default: Lat2-Terminus16). */
 function applyConsoleConfigRule() {
   return [
     `# Automated: console keymap/font from build_lfs.py prompts.
+# Lat2-Terminus16 is the LFS 13.0 §9.6 example; older parser default LatArC-16 is invalid.
+_console_font="\${LFS_CONSOLE_FONT:-Lat2-Terminus16}"
+if ! compgen -G "/usr/share/consolefonts/\${_console_font}"*.psfu* >/dev/null; then
+  echo "Warning: console font \${_console_font} not in /usr/share/consolefonts; using a book fallback." >&2
+  for _console_font in Lat2-Terminus16 LatArCyrHeb-16 LatGrkCyr-8x16 pancyrillic.f16; do
+    if compgen -G "/usr/share/consolefonts/\${_console_font}"*.psfu* >/dev/null; then
+      break
+    fi
+  done
+fi
 cat > /etc/vconsole.conf << EOF
 KEYMAP=\${LFS_KEYMAP:-us}
-FONT=\${LFS_CONSOLE_FONT:-LatArC-16}
-EOF`,
+FONT=\${_console_font}
+EOF
+unset _console_font`,
   ];
 }
 

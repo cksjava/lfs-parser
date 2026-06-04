@@ -35,6 +35,14 @@ BOOTSTRAP_SCRIPT = ROOT / "bootstrap-lfs.sh"
 STAGE_HOST_PREP = "stage-01-host-prep"
 
 CH8_E2FSPROGS_SCRIPT = "stage-05-system-build/0113-08-e2fsprogs.sh"
+# LFS 13.0 §9.6: Lat2-Terminus16 supports C.UTF-8 on the Linux console.
+DEFAULT_CONSOLE_FONT = "Lat2-Terminus16"
+BOOK_UTF8_CONSOLE_FONTS = (
+    "Lat2-Terminus16",
+    "LatArCyrHeb-16",
+    "LatGrkCyr-8x16",
+    "pancyrillic.f16",
+)
 CH8_POST_HOST_STEPS: list[dict[str, Any]] = [
     {
         "script_id": "stage-05-system-build/0114-08-stripping.sh",
@@ -62,7 +70,7 @@ class BuildConfig:
     timezone: str = "UTC"
     locale: str = "en_US.UTF-8"
     keymap: str = "us"
-    console_font: str = "LatArC-16"
+    console_font: str = DEFAULT_CONSOLE_FONT
     sources_dir: str = ""
     book_dir: str = ""
     scripts_dir: str = ""
@@ -234,6 +242,26 @@ def read_host_resolvers() -> tuple[list[str], str]:
     return servers, domain
 
 
+def probe_host_vconsole() -> dict[str, str]:
+    """
+    Read the build host's /etc/vconsole.conf when present.
+    Used as defaults for LFS KEYMAP/FONT prompts (LFS §9.6).
+    """
+    defaults = {"keymap": "us", "font": DEFAULT_CONSOLE_FONT}
+    path = Path("/etc/vconsole.conf")
+    if not path.is_file():
+        return defaults
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("KEYMAP="):
+            defaults["keymap"] = line.split("=", 1)[1].strip().strip('"')
+        elif line.startswith("FONT="):
+            defaults["font"] = line.split("=", 1)[1].strip().strip('"')
+    return defaults
+
+
 def probe_host_clock() -> dict[str, str]:
     """
     Detect whether the build host hardware clock uses local time.
@@ -363,8 +391,19 @@ def collect_preferences() -> BuildConfig:
     )
     cfg.timezone = prompt("Timezone (e.g. UTC or America/New_York)", cfg.timezone)
     cfg.locale = prompt("Locale", cfg.locale)
-    cfg.keymap = prompt("Console keymap", cfg.keymap)
-    cfg.console_font = prompt("Console font", cfg.console_font)
+    vconsole = probe_host_vconsole()
+    font_hint = ", ".join(BOOK_UTF8_CONSOLE_FONTS)
+    cfg.keymap = prompt(
+        "Console keymap (KEYMAP in vconsole.conf)",
+        vconsole.get("keymap") or cfg.keymap,
+    )
+    cfg.console_font = normalize_console_font(
+        prompt(
+            f"Console font (LFS §9.6 book default: {DEFAULT_CONSOLE_FONT}; "
+            f"C.UTF-8: {font_hint})",
+            normalize_console_font(vconsole.get("font") or cfg.console_font),
+        )
+    )
     cfg.lfs_user = prompt("LFS build user", cfg.lfs_user)
     cfg.lfs_group = prompt("LFS build group", cfg.lfs_group)
     cfg.root_password = prompt("Root password", cfg.root_password)
@@ -382,6 +421,13 @@ def save_config(cfg: BuildConfig) -> None:
     CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
 
 
+def normalize_console_font(font: str) -> str:
+    """Map deprecated/invalid parser default to the LFS book example font."""
+    if font in ("LatArC-16", ""):
+        return DEFAULT_CONSOLE_FONT
+    return font
+
+
 def load_config() -> BuildConfig | None:
     if not CONFIG_FILE.exists():
         return None
@@ -389,6 +435,7 @@ def load_config() -> BuildConfig | None:
     cfg = BuildConfig(**{k: data.get(k, getattr(BuildConfig(), k)) for k in BuildConfig.__dataclass_fields__})
     if not cfg.lfs_partition:
         cfg.lfs_partition = "/dev/sdb2"
+    cfg.console_font = normalize_console_font(cfg.console_font)
     return cfg
 
 

@@ -59,7 +59,7 @@ defaults = {
     "timezone": "UTC",
     "locale": "en_US.UTF-8",
     "keymap": "us",
-    "console_font": "LatArC-16",
+    "console_font": "Lat2-Terminus16",
     "groff_paper_size": "A4",
     "jobs": 0,
 }
@@ -105,7 +105,7 @@ PY
   LFS_TIMEZONE="${LFS_TIMEZONE:-UTC}"
   LFS_LOCALE="${LFS_LOCALE:-en_US.UTF-8}"
   LFS_KEYMAP="${LFS_KEYMAP:-us}"
-  LFS_CONSOLE_FONT="${LFS_CONSOLE_FONT:-LatArC-16}"
+  LFS_CONSOLE_FONT="${LFS_CONSOLE_FONT:-Lat2-Terminus16}"
   LFS_GROFF_PAPER_SIZE="${LFS_GROFF_PAPER_SIZE:-A4}"
   LFS_BUILD_JOBS="${LFS_BUILD_JOBS:-0}"
 }
