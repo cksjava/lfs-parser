@@ -154,6 +154,8 @@ mount_fstab_extras() {
     [[ -z "${dev:-}" || "$dev" =~ ^# ]] && continue
     [[ -z "${mp:-}" || -z "${fstype:-}" ]] && continue
     [[ "$dev" == "none" ]] && continue
+    [[ "$fstype" == "swap" || "$mp" == "swap" ]] && continue
+    [[ "$mp" != /* ]] && continue
     case "$mp" in
       /|/proc|/sys|/dev|/run|/dev/pts|/dev/shm) continue ;;
     esac
