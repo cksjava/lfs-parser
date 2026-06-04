@@ -240,7 +240,6 @@ function applyGlibcLocaleRule(blocks, rule) {
   return result;
 }
 
-/** Replace interactive menuconfig with automated kernel configuration. */
 function kernelConfigBlock() {
   return `# Automated: localyesconfig when host config is visible; else defconfig (typical in chroot).
 if ! make localyesconfig; then
